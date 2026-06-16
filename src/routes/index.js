@@ -12,6 +12,7 @@ const adminRoutes = require('./v1/admin.routes');
 const couponRoutes = require('./v1/coupon.routes');
 const userRoutes = require('./v1/user.routes');
 const orderRoutes = require('./v1/order.routes');
+const uploadRoutes = require('./v1/upload.routes');
 
 // Register routes
 router.use('/auth', authRoutes);
@@ -24,6 +25,7 @@ router.use('/admin', adminRoutes);
 router.use('/coupons', couponRoutes);
 router.use('/users', userRoutes);
 router.use('/orders', orderRoutes);
+router.use('/upload', uploadRoutes);
 
 // Health check
 router.get('/health', (req, res) => {

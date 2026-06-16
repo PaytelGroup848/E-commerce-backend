@@ -8,15 +8,12 @@ const cartItemSchema = new mongoose.Schema(
       required: true,
     },
 
-    // Variant select kiya hai to
     variant: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "ProductVariant",
       default: null,
     },
 
-    // Snapshot — cart mein add karte waqt price save karo
-    // Price baad mein change ho to user ko pata chale
     priceSnapshot: {
       price: { type: Number, required: true },
       originalPrice: { type: Number, default: null },
@@ -30,7 +27,6 @@ const cartItemSchema = new mongoose.Schema(
       default: 1,
     },
 
-    // Price change hua hai cart mein add karne ke baad
     isPriceChanged: {
       type: Boolean,
       default: false,
@@ -46,21 +42,18 @@ const cartItemSchema = new mongoose.Schema(
 
 const cartSchema = new mongoose.Schema(
   {
-    // ─── User ─────────────────────────────────────────────
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      unique: true, 
+      unique: true, // ✅ Already creates index
     },
 
-    // ─── Items ────────────────────────────────────────────
     items: {
       type: [cartItemSchema],
       default: [],
     },
 
-    // ─── Coupon ───────────────────────────────────────────
     appliedCoupon: {
       couponId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -71,8 +64,6 @@ const cartSchema = new mongoose.Schema(
       discountAmount: { type: Number, default: 0 },
     },
 
-    // ─── Last Activity ────────────────────────────────────
-    // Abandoned cart emails ke liye
     lastActivityAt: {
       type: Date,
       default: Date.now,
@@ -84,7 +75,9 @@ const cartSchema = new mongoose.Schema(
 );
 
 // ─── Indexes ──────────────────────────────────────────────────
-cartSchema.index({ user: 1 });
+// ✅ REMOVED duplicate user index (unique: true already creates it)
+// cartSchema.index({ user: 1 });
+
 cartSchema.index({ lastActivityAt: 1 });
 
 const Cart = mongoose.model("Cart", cartSchema);

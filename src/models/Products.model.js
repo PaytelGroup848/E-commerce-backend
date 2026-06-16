@@ -2,7 +2,6 @@ const mongoose = require("mongoose");
 
 const productSchema = new mongoose.Schema(
   {
-    // ─── Basic Info ───────────────────────────────────────
     name: {
       type: String,
       required: [true, "Product name is required"],
@@ -29,23 +28,21 @@ const productSchema = new mongoose.Schema(
     sku: {
       type: String,
       unique: true,
-      sparse: true,
+      sparse: true, // ✅ Add sparse: true to allow multiple null values
+      trim: true,
     },
 
-    // ─── Ownership ────────────────────────────────────────
     vendor: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      default: null,
     },
 
-    // Admin ka product — vendor null hoga
     isAdminProduct: {
       type: Boolean,
       default: false,
     },
 
-    // ─── Category ─────────────────────────────────────────
     category: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Category",
@@ -63,7 +60,6 @@ const productSchema = new mongoose.Schema(
       default: null,
     },
 
-    // ─── Pricing ──────────────────────────────────────────
     price: {
       type: Number,
       required: [true, "Price is required"],
@@ -75,7 +71,6 @@ const productSchema = new mongoose.Schema(
       default: null,
     },
 
-    // Discount % — originalPrice se calculate hoga
     discountPercent: {
       type: Number,
       default: 0,
@@ -83,14 +78,12 @@ const productSchema = new mongoose.Schema(
       max: 100,
     },
 
-    // ─── Tax ──────────────────────────────────────────────
     taxClass: {
       type: String,
       enum: ["none", "gst_5", "gst_12", "gst_18", "gst_28"],
       default: "gst_18",
     },
 
-    // ─── Inventory ────────────────────────────────────────
     stock: {
       type: Number,
       required: true,
@@ -103,14 +96,11 @@ const productSchema = new mongoose.Schema(
       default: 5,
     },
 
-    // Stock track karna hai ya nahi
-    // False ho to "unlimited stock" maana jayega
     trackInventory: {
       type: Boolean,
       default: true,
     },
 
-    // ─── Images ───────────────────────────────────────────
     images: [
       {
         url: { type: String, required: true },
@@ -120,30 +110,23 @@ const productSchema = new mongoose.Schema(
       },
     ],
 
-    // ─── Variants ─────────────────────────────────────────
-    // Variants hain ya nahi (Size/Color etc)
     hasVariants: {
       type: Boolean,
       default: false,
     },
 
-    // ─── Specifications ───────────────────────────────────
     specifications: [
       {
-        label: String, // e.g. "Material"
-        value: String, // e.g. "Cotton"
+        label: String,
+        value: String,
       },
     ],
 
-    // ─── Highlights ───────────────────────────────────────
     highlights: {
       type: [String],
       default: [],
     },
 
-  
-
-    // ─── Status ───────────────────────────────────────────
     status: {
       type: String,
       enum: ["draft", "active", "inactive", "rejected"],
@@ -155,14 +138,12 @@ const productSchema = new mongoose.Schema(
       default: null,
     },
 
-    // ─── SEO ──────────────────────────────────────────────
     seo: {
       metaTitle: String,
       metaDescription: String,
       keywords: [String],
     },
 
-    // ─── Stats ────────────────────────────────────────────
     rating: {
       type: Number,
       default: 0,
@@ -211,7 +192,7 @@ productSchema.index({ totalSold: -1 });
 productSchema.index({ createdAt: -1 });
 productSchema.index({ tags: 1 });
 
-// Text search index — name aur description mein search
+// Text search index
 productSchema.index(
   { name: "text", description: "text", tags: "text" },
   { weights: { name: 10, tags: 5, description: 1 } }

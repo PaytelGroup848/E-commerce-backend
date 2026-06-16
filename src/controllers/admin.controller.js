@@ -39,6 +39,17 @@ class AdminController {
     }
   }
 
+  async createVendor(req, res, next) {
+    try {
+      const vendor = await adminService.createVendor(req.body);
+      res.status(201).json(
+        ApiResponse.success('Vendor created successfully', { vendor })
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async approveVendor(req, res, next) {
     try {
       const { id } = req.params;
@@ -108,6 +119,17 @@ class AdminController {
       const user = await adminService.getUserById(id);
       res.status(200).json(
         ApiResponse.success('User fetched successfully', { user })
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async createUser(req, res, next) {
+    try {
+      const user = await adminService.createUser(req.body);
+      res.status(201).json(
+        ApiResponse.success('User created successfully', { user })
       );
     } catch (error) {
       next(error);

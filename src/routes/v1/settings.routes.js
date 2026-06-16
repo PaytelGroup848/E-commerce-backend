@@ -3,22 +3,35 @@ const router = express.Router();
 const settingsController = require('../../controllers/settings.controller');
 const { protect, restrictTo } = require('../../middlewares/auth.middleware');
 
-// ========== PUBLIC ROUTES (No Auth Required) ==========
+// ==================== PUBLIC ROUTES ====================
 router.get('/vendor-registration', settingsController.getVendorRegistrationStatus);
 router.get('/store-info', settingsController.getStoreInfo);
 router.get('/maintenance', settingsController.checkMaintenance);
+router.get('/order', settingsController.getOrderSettings);
+router.get('/tax', settingsController.getTaxSettings);
 
-// ========== ADMIN ONLY ROUTES ==========
+// ==================== ADMIN ONLY ROUTES ====================
 router.use(protect);
 router.use(restrictTo('super_admin', 'sub_admin'));
 
-// General settings
+// General Settings
 router.get('/', settingsController.getSettings);
 router.put('/', settingsController.updateSettings);
 
-// Vendor settings
-router.put('/vendor-registration', settingsController.updateVendorRegistrationStatus);
+// Vendor Settings
+router.put('/vendor-registration', settingsController.updateVendorRegistration);
+router.put('/vendor-approval', settingsController.updateVendorApproval);
 router.put('/vendor-auto-approve', settingsController.updateVendorAutoApprove);
-router.put('/commission-rate', settingsController.updateCommissionRate);
+router.put('/vendor-commission', settingsController.updateVendorCommission);
+
+// Order Settings
+router.put('/order', settingsController.updateOrderSettings);
+
+// Tax Settings
+router.put('/tax', settingsController.updateTaxSettings);
+
+// Commission Settings
+router.get('/commission', settingsController.getCommissionSettings);
+router.put('/commission', settingsController.updateCommissionSettings);
 
 module.exports = router;

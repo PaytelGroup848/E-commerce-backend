@@ -6,7 +6,7 @@ const wishlistSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      unique: true,
+      unique: true, // ✅ Already creates index
     },
 
     items: [
@@ -36,7 +36,9 @@ const wishlistSchema = new mongoose.Schema(
 );
 
 // ─── Indexes ──────────────────────────────────────────────────
-wishlistSchema.index({ user: 1 });
+// ✅ REMOVED duplicate user index (unique: true already creates it)
+// wishlistSchema.index({ user: 1 });
+
 wishlistSchema.index({ "items.product": 1 });
 
 const Wishlist = mongoose.model("Wishlist", wishlistSchema);
