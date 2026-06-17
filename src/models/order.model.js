@@ -20,7 +20,7 @@ const orderItemSchema = new mongoose.Schema({
   total: { type: Number, required: true },
   image: { type: String, default: null },
   variantName: { type: String, default: null },
-  vendor: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  vendor: { type: mongoose.Schema.Types.ObjectId, ref: "User", default:null },
   vendorCommission: { type: Number, default: 0 },
   vendorEarnings: { type: Number, default: 0 },
   status: {
@@ -187,6 +187,6 @@ orderSchema.index({ vendorId: 1, createdAt: -1 });
 orderSchema.index({ "payment.transactionId": 1 });
 orderSchema.index({ createdAt: -1 });
 
-const Order = mongoose.model("Order", orderSchema);
+const Order = mongoose.models.Order || mongoose.model("Order", orderSchema);
 
 module.exports = Order;
