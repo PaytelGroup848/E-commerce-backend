@@ -58,7 +58,8 @@ app.use(cookieParser());
 
 // Security middleware
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: false,
 }));
 
 // Rate limiting
@@ -84,7 +85,11 @@ if (!fs.existsSync(productsDir)) fs.mkdirSync(productsDir, { recursive: true });
 if (!fs.existsSync(categoriesDir)) fs.mkdirSync(categoriesDir, { recursive: true });
 
 // ========== SERVE STATIC FILES ==========
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static(path.join(__dirname, 'uploads')));
 
 // ========== HEALTH CHECK ==========
 app.get('/health', (req, res) => {
