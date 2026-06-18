@@ -7,7 +7,7 @@ const {
   addToCartSchema,
   updateQuantitySchema,
   applyCouponSchema,
-} = require('../../Validation/cart.validation');
+} = require('../../validation/cart.validation');
 
 // All cart routes require authentication
 router.use(protect);
