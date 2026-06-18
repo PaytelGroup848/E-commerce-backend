@@ -95,6 +95,27 @@ const userSchema = new mongoose.Schema(
     permissions: {
       type: [String],
       default: [],
+      enum: [
+        // Categories
+        'categories_view',
+        'categories_create',
+        'categories_edit',
+        'categories_delete',
+        
+        // Products
+        'products_view',
+        'products_create',
+        'products_edit',
+        'products_delete',
+        
+        // Orders
+        'orders_view',
+        'orders_edit',
+        
+        // Customers
+        'customers_view',
+        'customers_edit',
+      ],
     },
 
     status: {
@@ -163,7 +184,9 @@ userSchema.index({ role: 1, status: 1 });
 userSchema.index({ phone: 1 });
 userSchema.index({ createdAt: -1 });
 
-// ─── NO PRE-SAVE HOOK - REMOVED COMPLETELY ────────────────────
+// ─── ✅ FIXED: Password Hash - Without using 'next' ───────
+// Remove pre-save hook entirely - handle hashing in service
+// userSchema.pre('save', function(next) { ... }); // ❌ REMOVED
 
 // ─── Compare Password ────────────────────────────────────
 userSchema.methods.comparePassword = async function(enteredPassword) {

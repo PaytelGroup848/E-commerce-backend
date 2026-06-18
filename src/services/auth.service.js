@@ -84,8 +84,8 @@ class AuthService {
       throw new ApiError(403, 'Account locked. Please try again later');
     }
 
-    // Check password
-    const isPasswordValid = await user.comparePassword(password);
+    // Check password - ✅ FIXED: using await properly
+    const isPasswordValid = await bcrypt.compare(password, user.password);
     
     if (!isPasswordValid) {
       user.failedLoginAttempts += 1;
@@ -150,6 +150,7 @@ class AuthService {
         role: user.role,
         phone: user.phone,
         avatar: user.avatar,
+         permissions: user.permissions || [],
       },
       accessToken,
       refreshToken,

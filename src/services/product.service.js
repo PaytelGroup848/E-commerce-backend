@@ -1,3 +1,8 @@
+const Cart = require('../models/Cart.model');
+const Wishlist = require('../models/Wishlist.model');
+const Review = require('../models/Review.model');
+const uploadService = require('./upload.service');
+
 const Product = require('../models/Products.model');
 const ProductVariant = require('../models/productvarient.model');
 const Category = require('../models/Categories.model');
@@ -12,6 +17,25 @@ class ProductService {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '');
   }
+
+    async deleteStoredImage(image, folder = 'products') {
+    if (!image) return false;
+
+    const publicId = image.publicId || image.url || image;
+    if (!publicId) return false;
+
+    return uploadService.deleteImage(publicId, folder);
+  }
+
+  async deleteImageList(images = [], folder = 'products') {
+    const results = await Promise.allSettled(
+      images.map((image) => this.deleteStoredImage(image, folder))
+    );
+
+    return results.filter((result) => result.status === 'fulfilled' && result.value).length;
+  }
+
+
 
   // Generate SKU if not provided
   generateSku(name) {
@@ -319,21 +343,54 @@ class ProductService {
   }
 
   // Delete product
-  async deleteProduct(id, userId, isAdmin = false) {
+    async deleteProduct(id, userId, isAdmin = false) {
     const product = await Product.findById(id);
     if (!product) {
       throw new ApiError(404, 'Product not found');
     }
 
-    if (!isAdmin && product.vendor && product.vendor.toString() !== userId) {
+    if (!isAdmin && product.vendor && product.vendor.toString() !== userId.toString()) {
       throw new ApiError(403, 'You can only delete your own products');
     }
 
+    const variants = await ProductVariant.find({ product: id });
+    const reviews = await Review.find({ product: id });
+
+    const deletedProductImages = await this.deleteImageList(product.images || [], 'products');
+
+    const variantImages = variants
+      .map((variant) => variant.image)
+      .filter((image) => image && (image.url || image.publicId));
+
+    const deletedVariantImages = await this.deleteImageList(variantImages, 'products');
+
+    const reviewImages = reviews.flatMap((review) => review.images || []);
+    const deletedReviewImages = await this.deleteImageList(reviewImages, 'products');
+
+    await Cart.updateMany(
+      { 'items.product': id },
+      { $pull: { items: { product: id } } }
+    );
+
+    await Wishlist.updateMany(
+      { 'items.product': id },
+      { $pull: { items: { product: id } } }
+    );
+
+    await Review.deleteMany({ product: id });
     await ProductVariant.deleteMany({ product: id });
     await product.deleteOne();
+
     await this.updateCategoryProductCount(product.category);
 
-    return true;
+    return {
+      deleted: true,
+      cleanup: {
+        productImages: deletedProductImages,
+        variantImages: deletedVariantImages,
+        reviewImages: deletedReviewImages,
+      },
+    };
   }
 
   // Update product status

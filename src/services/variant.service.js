@@ -1,6 +1,7 @@
 const ProductVariant = require('../models/productvarient.model');
 const Product = require('../models/Products.model');
 const ApiError = require('../utils/ApiError');
+const uploadService = require('./upload.service');
 
 class VariantService {
   // Create variant
@@ -120,6 +121,10 @@ class VariantService {
     if (!isAdmin && product.vendor && product.vendor.toString() !== userId) {
       throw new ApiError(403, 'You can only delete variants of your own products');
     }
+        if (variant.image?.publicId || variant.image?.url) {
+      await uploadService.deleteImage(variant.image.publicId || variant.image.url, 'products');
+    }
+;
 
     await variant.deleteOne();
 

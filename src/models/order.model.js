@@ -186,6 +186,9 @@ orderSchema.index({ status: 1, createdAt: -1 });
 orderSchema.index({ vendorId: 1, createdAt: -1 });
 orderSchema.index({ "payment.transactionId": 1 });
 orderSchema.index({ createdAt: -1 });
+orderSchema.index({ createdAt: -1, 'payment.status': 1 });
+orderSchema.index({ 'items.product': 1 });
+orderSchema.index({ 'items.vendor': 1 });
 
 const Order = mongoose.models.Order || mongoose.model("Order", orderSchema);
 

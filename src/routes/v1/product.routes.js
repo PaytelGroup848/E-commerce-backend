@@ -11,6 +11,8 @@ router.get('/slug/:slug', productController.getProductBySlug);
 router.get('/category/:categoryId', productController.getProductsByCategory);
 router.get('/:id', productController.getProductById);
 
+router.get('/:id', productController.getProductById);
+
 // ==================== PROTECTED ROUTES ====================
 router.use(protect);
 
@@ -32,5 +34,8 @@ router.get('/variants/:variantId', productController.getVariantById);
 router.put('/variants/:variantId', productController.updateVariant);
 router.delete('/variants/:variantId', productController.deleteVariant);
 router.patch('/variants/:variantId/toggle', productController.toggleVariantStatus);
+
+
+
 
 module.exports = router;
