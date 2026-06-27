@@ -114,8 +114,5 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log('🚀 Server running on port ' + PORT);
-  console.log('📝 Environment: ' + process.env.NODE_ENV);
   console.log('✅ CORS enabled for origins:', allowedOrigins);
-  console.log('📸 Image upload limit: 50MB');
-  console.log('📁 Uploads directory: ' + uploadsDir);
 });

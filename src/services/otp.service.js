@@ -1,64 +1,107 @@
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const OtpToken = require('../models/Otptoken.model');
-const { generateOTP, generateExpiryTime } = require('../utils/otp.util');
+const emailService = require('./email.service');
+
+// ─── Generate secure 6-digit OTP ─────────────────────────────────────────────
+const generateOTP = () => {
+  // Cryptographically secure random 6-digit number
+  const buf = crypto.randomBytes(3);
+  const num = buf.readUIntBE(0, 3) % 1000000;
+  return num.toString().padStart(6, '0');
+};
+
+// ─── OTP expiry (minutes → Date) ─────────────────────────────────────────────
+const expiresInMinutes = (mins) => new Date(Date.now() + mins * 60 * 1000);
 
 class OtpService {
-  async createOtp(email, type) {
-    // Delete existing OTPs for this email and type
+  // ── Create OTP, save to DB, send email ────────────────────────────────────
+  async createAndSendOtp(email, type, userMeta = {}) {
+    // Delete any existing OTPs for this email + type
     await OtpToken.deleteMany({ email, type });
 
-    // For testing, use a fixed OTP "123456"
-    const isTestMode = process.env.NODE_ENV === 'development';
-    const otp = isTestMode ? '123456' : generateOTP(6);
-    
+    const otp = generateOTP();
     const hashedOtp = await bcrypt.hash(otp, 10);
-    const expiresAt = generateExpiryTime(10);
 
-    const otpToken = await OtpToken.create({
+    await OtpToken.create({
       email,
       otp: hashedOtp,
       type,
-      expiresAt,
+      expiresAt: expiresInMinutes(10),
     });
 
-    console.log(`\n🔐 ===== OTP GENERATED =====`);
-    console.log(`Email: ${email}`);
-    console.log(`Type: ${type}`);
-    console.log(`OTP: ${otp}`);
-    console.log(`==========================\n`);
+    console.log(`\n🔐 OTP [${type}] for ${email}: ${otp}\n`);
 
-    return { otp, otpToken };
+    // ── Send the right email based on type ──────────────────────────────────
+    const name = userMeta.name || 'User';
+
+    switch (type) {
+      case 'email_verify':
+        await emailService.sendVerificationEmail(email, name, otp);
+        break;
+      case 'forgot_password':
+        await emailService.sendPasswordResetEmail(email, name, otp);
+        break;
+      default:
+        // Generic fallback — send as verification
+        await emailService.sendVerificationEmail(email, name, otp);
+    }
+
+    // In development, return otp so frontend can show it (remove in prod)
+    return {
+      otp: process.env.NODE_ENV === 'development' ? otp : undefined,
+    };
   }
 
+  // ── Verify OTP ────────────────────────────────────────────────────────────
   async verifyOtp(email, otp, type) {
-    const otpRecord = await OtpToken.findOne({
+    const record = await OtpToken.findOne({
       email,
       type,
       isUsed: false,
       expiresAt: { $gt: new Date() },
     });
 
-    if (!otpRecord) {
-      throw new Error('OTP expired or not found');
+    if (!record) {
+      throw new Error('OTP has expired or does not exist. Please request a new one.');
     }
 
-    if (otpRecord.attempts >= 5) {
-      throw new Error('Maximum attempts exceeded. Please request new OTP');
+    if (record.attempts >= 5) {
+      await OtpToken.deleteOne({ _id: record._id });
+      throw new Error('Too many incorrect attempts. Please request a new OTP.');
     }
 
-    const isValid = await bcrypt.compare(otp, otpRecord.otp);
+    const isValid = await bcrypt.compare(otp.toString(), record.otp);
 
     if (!isValid) {
-      otpRecord.attempts += 1;
-      await otpRecord.save();
-      throw new Error('Invalid OTP');
+      record.attempts += 1;
+      await record.save();
+      const remaining = 5 - record.attempts;
+      throw new Error(`Invalid OTP. ${remaining} attempt(s) remaining.`);
     }
 
-    // Mark OTP as used
-    otpRecord.isUsed = true;
-    await otpRecord.save();
+    // Mark as used
+    record.isUsed = true;
+    await record.save();
 
     return true;
+  }
+
+  // ── Resend OTP (rate-limited: max 1 per minute) ───────────────────────────
+  async resendOtp(email, type, userMeta = {}) {
+    // Check if a recent OTP was sent in last 60 seconds
+    const recent = await OtpToken.findOne({
+      email,
+      type,
+      createdAt: { $gt: new Date(Date.now() - 60 * 1000) },
+    });
+
+    if (recent) {
+      const waitSecs = Math.ceil((recent.createdAt.getTime() + 60000 - Date.now()) / 1000);
+      throw new Error(`Please wait ${waitSecs} second(s) before requesting a new OTP.`);
+    }
+
+    return this.createAndSendOtp(email, type, userMeta);
   }
 }
 

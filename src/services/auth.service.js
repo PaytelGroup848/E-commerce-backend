@@ -1,265 +1,164 @@
-const User = require('../models/User.model');
-const Vendor = require('../models/vendor.model');
-const Session = require('../models/Session.model');
-const bcrypt = require('bcryptjs');
-const { generateTokens, verifyRefreshToken } = require('../utils/jwt.util');
-const otpService = require('./otp.service');
-const emailService = require('./email.service');
-const ApiError = require('../utils/ApiError');
+const api =  require('./api')
 
-class AuthService {
-  async register(userData, ipAddress, userAgent) {
-    const { name, email, password, phone, role = 'customer' } = userData;
-    
-    // Check if user exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      throw new ApiError(400, 'User already exists with this email');
-    }
+// ─── Token storage helpers ────────────────────────────────────────────────────
+const storage = {
+  set: (key, value) => localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value)),
+  get: (key) => {
+    const v = localStorage.getItem(key) || sessionStorage.getItem(key);
+    try { return v ? JSON.parse(v) : null; } catch { return v; }
+  },
+  remove: (key) => { localStorage.removeItem(key); sessionStorage.removeItem(key); },
+};
 
-    // Hash password manually
-    const salt = await bcrypt.genSalt(12);
-    const hashedPassword = await bcrypt.hash(password, salt);
+const saveAuthData = (data) => {
+  if (data?.accessToken)  storage.set('accessToken', data.accessToken);
+  if (data?.refreshToken) storage.set('refreshToken', data.refreshToken);
+  if (data?.user)         storage.set('user', data.user);
+};
 
-    // Create user with role
-    const user = await User.create({
-      name,
-      email,
-      password: hashedPassword,
-      phone: phone || null,
-      role, // Set role from request
+ const authService = {
+  // ── Register ─────────────────────────────────────────────────────────────
+  // Returns: { message, data: { otp? } }  (no tokens yet — email not verified)
+  register: async (userData) => {
+    const response = await api.post('/auth/register', {
+      name:     userData.name,
+      email:    userData.email,
+      phone:    userData.phone || undefined,
+      password: userData.password,
     });
+    // NOTE: do NOT save tokens here — user is not verified yet
+    return response.data;
+  },
 
-    // If role is vendor, create vendor record
-    if (role === 'vendor') {
-      await Vendor.create({
-        user: user._id,
-        businessName: name,
-        businessEmail: email,
-        businessPhone: phone || null,
-        status: 'pending', // Vendor approval pending
-      });
+  // ── Verify email OTP ──────────────────────────────────────────────────────
+  verifyEmail: async (email, otp) => {
+    const response = await api.post('/auth/verify-email', { email, otp: otp.toString() });
+    return response.data;
+  },
+
+  // ── Login ─────────────────────────────────────────────────────────────────
+  login: async (credentials) => {
+    const response = await api.post('/auth/login', credentials);
+    if (response.data?.data?.accessToken) {
+      saveAuthData(response.data.data);
     }
+    return response.data;
+  },
 
-    // Generate OTP and send email
-    const { otp } = await otpService.createOtp(user.email, 'email_verify');
-    await emailService.sendVerificationEmail(user.email, user.name, otp);
+  // ── Resend OTP ────────────────────────────────────────────────────────────
+  resendOtp: async (email, type = 'email_verify') => {
+    const response = await api.post('/auth/resend-otp', { email, type });
+    return response.data;
+  },
 
-    // Generate tokens
-    const { accessToken, refreshToken } = generateTokens(user._id, user.role);
+  // ── Forgot password ───────────────────────────────────────────────────────
+  forgotPassword: async (email) => {
+    const response = await api.post('/auth/forgot-password', { email });
+    return response.data;
+  },
 
-    // Create session
-    await Session.create({
-      user: user._id,
-      refreshToken,
-      deviceId: `${ipAddress}_${userAgent}`,
-      deviceName: userAgent,
-      ipAddress,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    });
+  // ── Reset password ────────────────────────────────────────────────────────
+  resetPassword: async (email, otp, newPassword, confirmPassword) => {
+    const response = await api.post('/auth/reset-password', { email, otp, newPassword, confirmPassword });
+    return response.data;
+  },
 
-    return {
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        isEmailVerified: user.isEmailVerified,
-      },
-      accessToken,
-      refreshToken,
-    };
-  }
+  // ── Get current user ──────────────────────────────────────────────────────
+  getCurrentUser: async () => {
+    const response = await api.get('/auth/me');
+    return response.data;
+  },
 
-  async login(email, password, ipAddress, userAgent) {
-    // Get user with password
-    const user = await User.findOne({ email }).select('+password');
-    
-    if (!user) {
-      throw new ApiError(401, 'Invalid credentials');
+  // ── Refresh token ─────────────────────────────────────────────────────────
+  refreshToken: async (refreshToken) => {
+    const response = await api.post('/auth/refresh-token', { refreshToken });
+    if (response.data?.data?.accessToken) {
+      storage.set('accessToken', response.data.data.accessToken);
     }
+    return response.data;
+  },
 
-    // Check account lock
-    if (user.accountLockedUntil && user.accountLockedUntil > new Date()) {
-      throw new ApiError(403, 'Account locked. Please try again later');
+  // ── Logout ────────────────────────────────────────────────────────────────
+  logout: async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch {
+      // Silently ignore — clear data regardless
+    } finally {
+      authService.clearAuthData();
+      window.dispatchEvent(new Event('auth-changed'));
+      window.location.href = '/login';
     }
+  },
 
-    // Check password - ✅ FIXED: using await properly
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    
-    if (!isPasswordValid) {
-      user.failedLoginAttempts += 1;
-      
-      if (user.failedLoginAttempts >= 5) {
-        user.accountLockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+  // ── Auth checks ───────────────────────────────────────────────────────────
+  isAuthenticated: () => {
+    const token = authService.getToken();
+    if (!token) return false;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      if (payload.exp * 1000 < Date.now()) {
+        authService.clearAuthData();
+        return false;
       }
-      
-      await user.save();
-      throw new ApiError(401, 'Invalid credentials');
-    }
-
-    // Reset failed attempts on successful login
-    user.failedLoginAttempts = 0;
-    user.accountLockedUntil = null;
-    await user.save();
-
-    // Check if email is verified
-    if (!user.isEmailVerified) {
-      const { otp } = await otpService.createOtp(user.email, 'email_verify');
-      await emailService.sendVerificationEmail(user.email, user.name, otp);
-      throw new ApiError(403, 'Email not verified. New OTP sent to your email');
-    }
-
-    // Check account status
-    if (user.status !== 'active') {
-      throw new ApiError(403, `Account is ${user.status}`);
-    }
-
-    // Check if vendor is approved (for vendor role)
-    if (user.role === 'vendor') {
-      const vendor = await Vendor.findOne({ user: user._id });
-      if (vendor && vendor.status === 'pending') {
-        throw new ApiError(403, 'Your vendor account is pending approval by admin');
-      }
-      if (vendor && vendor.status === 'rejected') {
-        throw new ApiError(403, 'Your vendor application has been rejected');
-      }
-      if (vendor && vendor.status === 'suspended') {
-        throw new ApiError(403, 'Your vendor account has been suspended');
-      }
-    }
-
-    // Generate tokens
-    const { accessToken, refreshToken } = generateTokens(user._id, user.role);
-
-    // Create session
-    await Session.create({
-      user: user._id,
-      refreshToken,
-      deviceId: `${ipAddress}_${userAgent}`,
-      deviceName: userAgent,
-      ipAddress,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    });
-
-    return {
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        phone: user.phone,
-        avatar: user.avatar,
-         permissions: user.permissions || [],
-      },
-      accessToken,
-      refreshToken,
-    };
-  }
-
-  async refreshToken(refreshToken) {
-    if (!refreshToken) {
-      throw new ApiError(401, 'No refresh token provided');
-    }
-
-    const decoded = verifyRefreshToken(refreshToken);
-    
-    const session = await Session.findOne({
-      refreshToken,
-      isActive: true,
-      expiresAt: { $gt: new Date() },
-    });
-
-    if (!session) {
-      throw new ApiError(401, 'Invalid or expired refresh token');
-    }
-
-    const user = await User.findById(decoded.id);
-    if (!user) {
-      throw new ApiError(401, 'User not found');
-    }
-
-    const { accessToken, refreshToken: newRefreshToken } = generateTokens(user._id, user.role);
-
-    session.refreshToken = newRefreshToken;
-    session.lastActiveAt = new Date();
-    await session.save();
-
-    return { accessToken, refreshToken: newRefreshToken };
-  }
-
-  async logout(refreshToken) {
-    if (refreshToken) {
-      await Session.findOneAndDelete({ refreshToken });
-    }
-    return true;
-  }
-
-  async verifyEmail(email, otp) {
-    await otpService.verifyOtp(email, otp, 'email_verify');
-    
-    const user = await User.findOne({ email });
-    if (!user) {
-      throw new ApiError(404, 'User not found');
-    }
-
-    user.isEmailVerified = true;
-    user.emailVerifiedAt = new Date();
-    user.status = 'active';
-    await user.save();
-
-    return true;
-  }
-
-  async resendVerificationOtp(email) {
-    const user = await User.findOne({ email });
-    if (!user) {
-      throw new ApiError(404, 'User not found');
-    }
-
-    if (user.isEmailVerified) {
-      throw new ApiError(400, 'Email already verified');
-    }
-
-    const { otp } = await otpService.createOtp(email, 'email_verify');
-    await emailService.sendVerificationEmail(email, user.name, otp);
-    
-    return true;
-  }
-
-  async forgotPassword(email) {
-    const user = await User.findOne({ email });
-    if (!user) {
       return true;
+    } catch {
+      return false;
     }
+  },
 
-    const { otp } = await otpService.createOtp(email, 'forgot_password');
-    await emailService.sendPasswordResetEmail(email, user.name, otp);
-    
-    return true;
-  }
+  getUser:         () => storage.get('user'),
+  getToken:        () => localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken'),
+  getRefreshToken: () => localStorage.getItem('refreshToken') || sessionStorage.getItem('refreshToken'),
 
-  async resetPassword(email, otp, newPassword) {
-    await otpService.verifyOtp(email, otp, 'forgot_password');
-    
-    const user = await User.findOne({ email });
-    if (!user) {
-      throw new ApiError(404, 'User not found');
+  updateUser: (userData) => {
+    const current = authService.getUser() || {};
+    const updated = { ...current, ...userData };
+    storage.set('user', updated);
+    return updated;
+  },
+
+  clearAuthData: () => {
+    ['accessToken', 'refreshToken', 'user'].forEach((k) => storage.remove(k));
+    sessionStorage.clear();
+  },
+
+  // ── Role helpers ──────────────────────────────────────────────────────────
+  hasRole:    (role) => authService.getUser()?.role === role,
+  isAdmin:    () => ['super_admin', 'sub_admin'].includes(authService.getUser()?.role),
+  isVendor:   () => authService.getUser()?.role === 'vendor',
+  isCustomer: () => authService.getUser()?.role === 'customer',
+
+  // ── Token expiry helpers ──────────────────────────────────────────────────
+  getTokenExpiry: () => {
+    const token = authService.getToken();
+    if (!token) return null;
+    try { return new Date(JSON.parse(atob(token.split('.')[1])).exp * 1000); } catch { return null; }
+  },
+
+  isTokenExpiringSoon: () => {
+    const token = authService.getToken();
+    if (!token) return false;
+    try {
+      const exp = JSON.parse(atob(token.split('.')[1])).exp * 1000;
+      return (exp - Date.now()) < 5 * 60 * 1000;
+    } catch { return true; }
+  },
+
+  autoRefreshToken: async () => {
+    if (!authService.isAuthenticated()) return false;
+    if (authService.isTokenExpiringSoon()) {
+      try {
+        const rt = authService.getRefreshToken();
+        if (rt) { await authService.refreshToken(rt); return true; }
+      } catch {
+        authService.clearAuthData();
+        window.location.href = '/login';
+        return false;
+      }
     }
+    return false;
+  },
+};
 
-    // Hash new password manually
-    const salt = await bcrypt.genSalt(12);
-    const hashedPassword = await bcrypt.hash(newPassword, salt);
-    
-    user.password = hashedPassword;
-    user.passwordChangedAt = new Date();
-    await user.save();
-
-    // Delete all sessions for this user
-    await Session.deleteMany({ user: user._id });
-
-    return true;
-  }
-}
-
-module.exports = new AuthService();
+module.exports = authService;

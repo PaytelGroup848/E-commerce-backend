@@ -6,28 +6,21 @@ const { protect } = require('../../middlewares/auth.middleware');
 // All user routes require authentication
 router.use(protect);
 
-// ── Profile ──────────────────────────────────────────────
+// Profile routes
 router.get('/profile', userController.getProfile);
 router.put('/profile', userController.updateProfile);
 router.post('/change-password', userController.changePassword);
 
-// ── Email change (OTP flow) ───────────────────────────────
-router.post('/request-email-change', userController.requestEmailChange);
-router.post('/verify-email-change', userController.verifyEmailChange);
-
-// ── Address ──────────────────────────────────────────────
+// Address routes
 router.get('/addresses', userController.getAddresses);
 router.post('/addresses', userController.addAddress);
 router.put('/addresses/:addressId', userController.updateAddress);
 router.delete('/addresses/:addressId', userController.deleteAddress);
 
-// ── Orders ───────────────────────────────────────────────
+// Order routes
 router.get('/orders', userController.getUserOrders);
 
-// ── Stats ────────────────────────────────────────────────
+// Stats
 router.get('/stats', userController.getUserStats);
-
-// ── Delete Account ───────────────────────────────────────
-router.delete('/delete-account', userController.deleteAccount);
 
 module.exports = router;
