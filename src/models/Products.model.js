@@ -182,7 +182,6 @@ const productSchema = new mongoose.Schema(
 );
 
 // ─── Indexes ──────────────────────────────────────────────────
-productSchema.index({ slug: 1 });
 productSchema.index({ vendor: 1, status: 1 });
 productSchema.index({ category: 1, status: 1 });
 productSchema.index({ status: 1, isFeatured: 1 });

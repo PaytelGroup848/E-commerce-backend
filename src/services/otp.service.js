@@ -1,3 +1,4 @@
+const ApiError = require('../utils/ApiError');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const OtpToken = require('../models/Otptoken.model');
@@ -30,12 +31,22 @@ class OtpService {
       expiresAt: expiresInMinutes(10),
     });
 
+    if (process.env.NODE_ENV === 'development') {
     console.log(`\n🔐 OTP [${type}] for ${email}: ${otp}\n`);
+}
 
     // ── Send the right email based on type ──────────────────────────────────
     const name = userMeta.name || 'User';
 
     switch (type) {
+
+      case "email_change":
+    await emailService.sendEmailChangeOtp(
+        email,
+        name,
+        otp
+    );
+        break;
       case 'email_verify':
         await emailService.sendVerificationEmail(email, name, otp);
         break;
@@ -63,12 +74,16 @@ class OtpService {
     });
 
     if (!record) {
-      throw new Error('OTP has expired or does not exist. Please request a new one.');
+     throw new ApiError(
+    400,
+    'OTP has expired or does not exist. Please request a new one.'
+);
     }
 
     if (record.attempts >= 5) {
       await OtpToken.deleteOne({ _id: record._id });
-      throw new Error('Too many incorrect attempts. Please request a new OTP.');
+      throw new ApiError( 400,
+        'Too many incorrect attempts. Please request a new OTP.');
     }
 
     const isValid = await bcrypt.compare(otp.toString(), record.otp);
@@ -77,7 +92,8 @@ class OtpService {
       record.attempts += 1;
       await record.save();
       const remaining = 5 - record.attempts;
-      throw new Error(`Invalid OTP. ${remaining} attempt(s) remaining.`);
+      throw new ApiError( 400,
+        `Invalid OTP. ${remaining} attempt(s) remaining.`);
     }
 
     // Mark as used
@@ -98,7 +114,8 @@ class OtpService {
 
     if (recent) {
       const waitSecs = Math.ceil((recent.createdAt.getTime() + 60000 - Date.now()) / 1000);
-      throw new Error(`Please wait ${waitSecs} second(s) before requesting a new OTP.`);
+      throw new ApiError( 400,
+        `Please wait ${waitSecs} second(s) before requesting a new OTP.`);
     }
 
     return this.createAndSendOtp(email, type, userMeta);

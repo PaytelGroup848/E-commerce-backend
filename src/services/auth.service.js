@@ -1,164 +1,558 @@
-const api =  require('./api')
+const otpService = require('./otp.service');
+const ApiError = require('../utils/ApiError');
+const emailService = require('./email.service');
 
-// ─── Token storage helpers ────────────────────────────────────────────────────
-const storage = {
-  set: (key, value) => localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value)),
-  get: (key) => {
-    const v = localStorage.getItem(key) || sessionStorage.getItem(key);
-    try { return v ? JSON.parse(v) : null; } catch { return v; }
-  },
-  remove: (key) => { localStorage.removeItem(key); sessionStorage.removeItem(key); },
-};
+const crypto = require("crypto");
+const User = require('../models/User.model');
+const Session = require('../models/Session.model');
+const bcrypt = require('bcryptjs');
+const SALT_ROUNDS = 12;
 
-const saveAuthData = (data) => {
-  if (data?.accessToken)  storage.set('accessToken', data.accessToken);
-  if (data?.refreshToken) storage.set('refreshToken', data.refreshToken);
-  if (data?.user)         storage.set('user', data.user);
-};
+const {
+  generateTokens,
+  verifyRefreshToken,
+} = require('../utils/jwt.util');
 
- const authService = {
-  // ── Register ─────────────────────────────────────────────────────────────
-  // Returns: { message, data: { otp? } }  (no tokens yet — email not verified)
-  register: async (userData) => {
-    const response = await api.post('/auth/register', {
-      name:     userData.name,
-      email:    userData.email,
-      phone:    userData.phone || undefined,
-      password: userData.password,
+class AuthService {
+
+  /**
+   * ==========================================================
+   * Register User
+   * ==========================================================
+   */
+  async register(userData, ipAddress, userAgent) {
+
+    const {
+      name,
+      email,
+      password,
+      phone,
+    } = userData;
+
+    const normalizedName = name.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPhone = phone?.trim() || null;
+
+    // Check existing user
+    const existingUser = await User.findOne({
+      email: normalizedEmail
     });
-    // NOTE: do NOT save tokens here — user is not verified yet
-    return response.data;
-  },
 
-  // ── Verify email OTP ──────────────────────────────────────────────────────
-  verifyEmail: async (email, otp) => {
-    const response = await api.post('/auth/verify-email', { email, otp: otp.toString() });
-    return response.data;
-  },
-
-  // ── Login ─────────────────────────────────────────────────────────────────
-  login: async (credentials) => {
-    const response = await api.post('/auth/login', credentials);
-    if (response.data?.data?.accessToken) {
-      saveAuthData(response.data.data);
+    if (existingUser) {
+      throw new ApiError(
+        400,
+        'User already exists with this email'
+      );
     }
-    return response.data;
-  },
 
-  // ── Resend OTP ────────────────────────────────────────────────────────────
-  resendOtp: async (email, type = 'email_verify') => {
-    const response = await api.post('/auth/resend-otp', { email, type });
-    return response.data;
-  },
+    // Hash password
+    const hashedPassword =
+      await bcrypt.hash(password, SALT_ROUNDS);
 
-  // ── Forgot password ───────────────────────────────────────────────────────
-  forgotPassword: async (email) => {
-    const response = await api.post('/auth/forgot-password', { email });
-    return response.data;
-  },
+    // Create User
+    const user = await User.create({
 
-  // ── Reset password ────────────────────────────────────────────────────────
-  resetPassword: async (email, otp, newPassword, confirmPassword) => {
-    const response = await api.post('/auth/reset-password', { email, otp, newPassword, confirmPassword });
-    return response.data;
-  },
+      name: normalizedName,
 
-  // ── Get current user ──────────────────────────────────────────────────────
-  getCurrentUser: async () => {
-    const response = await api.get('/auth/me');
-    return response.data;
-  },
+      email: normalizedEmail,
 
-  // ── Refresh token ─────────────────────────────────────────────────────────
-  refreshToken: async (refreshToken) => {
-    const response = await api.post('/auth/refresh-token', { refreshToken });
-    if (response.data?.data?.accessToken) {
-      storage.set('accessToken', response.data.data.accessToken);
-    }
-    return response.data;
-  },
+      password: hashedPassword,
 
-  // ── Logout ────────────────────────────────────────────────────────────────
-  logout: async () => {
-    try {
-      await api.post('/auth/logout');
-    } catch {
-      // Silently ignore — clear data regardless
-    } finally {
-      authService.clearAuthData();
-      window.dispatchEvent(new Event('auth-changed'));
-      window.location.href = '/login';
-    }
-  },
+      phone: normalizedPhone,
 
-  // ── Auth checks ───────────────────────────────────────────────────────────
-  isAuthenticated: () => {
-    const token = authService.getToken();
-    if (!token) return false;
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      if (payload.exp * 1000 < Date.now()) {
-        authService.clearAuthData();
-        return false;
+      role: "customer",
+
+      status: 'pending',
+
+      isEmailVerified: false,
+
+    });
+
+    /**
+     * Send Email Verification OTP
+     *
+     * createAndSendOtp() already sends email,
+     * so DON'T call emailService again.
+     */
+
+    await otpService.createAndSendOtp(
+      user.email,
+      'email_verify',
+      {
+        name: user.name,
       }
+    );
+
+    /**
+     * Generate Tokens
+     */
+
+    const {
+      accessToken,
+      refreshToken,
+    } = generateTokens(
+      user._id,
+      user.role
+    )
+    await Session.create({
+
+      user: user._id,
+
+      refreshToken,
+
+      deviceId: `${normalizedEmail}_${Date.now()}`,
+
+      deviceName: userAgent || "Unknown Device",
+
+      ipAddress,
+
+      expiresAt: new Date(
+        Date.now() +
+        7 * 24 * 60 * 60 * 1000
+      ),
+
+    });
+
+    return {
+
+      user: {
+
+        id: user._id,
+
+        name: user.name,
+
+        email: user.email,
+
+        role: user.role,
+
+        phone: user.phone ?? null,
+
+        isEmailVerified: user.isEmailVerified,
+
+      },
+
+      accessToken,
+
+      refreshToken,
+
+    };
+
+  }
+  /**
+ * ==========================================================
+ * Login User
+ * ==========================================================
+ */
+  async login(email, password, ipAddress, userAgent) {
+
+    // Find user with password
+    const normalizedEmail =
+      email.trim().toLowerCase();
+
+    const user =
+      await User.findOne({
+        email: normalizedEmail
+      })
+        .select('+password');
+
+    if (!user) {
+      throw new ApiError(401, 'Invalid email or password');
+    }
+
+    // Account Lock Check
+    if (
+      user.accountLockedUntil &&
+      user.accountLockedUntil > new Date()
+    ) {
+      throw new ApiError(
+        403,
+        'Your account is temporarily locked. Please try again later.'
+      );
+    }
+
+    // Compare Password
+    const isPasswordValid = await bcrypt.compare(
+      password,
+      user.password
+    );
+
+    if (!isPasswordValid) {
+
+      user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+
+      if (user.failedLoginAttempts >= 5) {
+        user.accountLockedUntil = new Date(
+          Date.now() + 30 * 60 * 1000
+        );
+      }
+
+      await user.save({
+        validateBeforeSave: false
+      });
+
+      throw new ApiError(
+        401,
+        'Invalid email or password'
+      );
+    }
+
+    // Reset failed attempts
+    user.failedLoginAttempts = 0;
+    user.accountLockedUntil = null;
+
+    await user.save();
+
+    /**
+     * Email Verification Check
+     */
+    if (!user.isEmailVerified) {
+
+      await otpService.resendOtp(
+        user.email,
+        'email_verify',
+        {
+          name: user.name,
+        }
+      );
+
+      throw new ApiError(
+        403,
+        'Email not verified. A new OTP has been sent.'
+      );
+    }
+
+    /**
+     * Account Status Check
+     */
+    if (user.status !== 'active') {
+      throw new ApiError(
+        403,
+        `Your account is ${user.status}`
+      );
+    }
+
+    /**
+     * Generate Tokens
+     */
+    const {
+      accessToken,
+      refreshToken,
+    } = generateTokens(
+      user._id,
+      user.role
+    );
+    await Session.create({
+
+      user: user._id,
+
+      refreshToken,
+      deviceId: crypto.randomUUID(),
+
+      deviceName: userAgent,
+
+      ipAddress,
+
+      expiresAt: new Date(
+        Date.now() +
+        7 * 24 * 60 * 60 * 1000
+      ),
+
+    });
+
+    return {
+
+      user: {
+
+        id: user._id,
+
+        name: user.name,
+
+        email: user.email,
+
+        phone: user.phone,
+
+        avatar: user.avatar,
+
+        role: user.role,
+
+        permissions: user.permissions || [],
+
+      },
+
+      accessToken,
+
+      refreshToken,
+
+    };
+
+  }
+
+  /**
+   * ==========================================================
+   * Refresh Token
+   * ==========================================================
+   */
+  async refreshToken(refreshToken) {
+
+    if (!refreshToken) {
+      throw new ApiError(
+        401,
+        'Refresh token is required'
+      );
+    }
+
+    const decoded =
+      verifyRefreshToken(refreshToken);
+
+    const session =
+      await Session.findOne({
+
+        refreshToken,
+
+        isActive: true,
+
+        expiresAt: {
+          $gt: new Date(),
+        },
+
+      });
+
+    if (!session) {
+      throw new ApiError(
+        401,
+        'Invalid or expired refresh token'
+      );
+    }
+
+    const user =
+      await User.findById(decoded.id)
+        .select("_id role status");
+
+    if (!user) {
+      throw new ApiError(
+        404,
+        'User not found'
+      );
+    }
+
+    if (user.status !== "active") {
+      throw new ApiError(403, "Account inactive");
+    }
+
+    const {
+      accessToken,
+      refreshToken: newRefreshToken,
+    } = generateTokens(
+      user._id,
+      user.role
+    );
+
+    session.refreshToken = newRefreshToken;
+    session.lastActiveAt = new Date();
+
+    await session.save();
+
+    return {
+
+      accessToken,
+
+      refreshToken: newRefreshToken,
+
+    };
+
+
+  }
+  /**
+ * ==========================================================
+ * Logout User
+ * ==========================================================
+ */
+  async logout(refreshToken) {
+
+    if (refreshToken) {
+
+      await Session.findOneAndUpdate(
+
+        {
+          refreshToken
+        },
+
+        {
+          isActive: false,
+          lastActiveAt: new Date()
+        }
+
+      );
+
+    }
+
+    return true;
+
+  }
+
+  /**
+   * ==========================================================
+   * Verify Email
+   * ==========================================================
+   */
+  async verifyEmail(email, otp) {
+
+    // Verify OTP
+    await otpService.verifyOtp(
+      email,
+      otp,
+      'email_verify'
+    );
+
+    // Find User
+    const user = await User.findOne({
+      email: email.trim().toLowerCase()
+    });
+
+    if (!user) {
+      throw new ApiError(
+        404,
+        'User not found'
+      );
+    }
+
+    // Activate Account
+    user.isEmailVerified = true;
+    user.emailVerifiedAt = new Date();
+    user.status = 'active';
+    await user.save();
+    /**
+     * Send Welcome Email
+     */
+    await emailService.sendWelcomeEmail(
+      user.email,
+      user.name
+    );
+
+    return true;
+
+  }
+
+  /**
+   * ==========================================================
+   * Resend Verification OTP
+   * ==========================================================
+   */
+  async resendVerificationOtp(email) {
+
+    const user = await User.findOne({
+      email,
+    });
+
+    if (!user) {
+      throw new ApiError(
+        404,
+        'User not found'
+      );
+    }
+
+    if (user.isEmailVerified) {
+      throw new ApiError(
+        400,
+        'Email is already verified'
+      );
+    }
+
+    /**
+     * resendOtp()
+     * already handles:
+     *
+     * ✔ Rate Limit
+     * ✔ OTP Generation
+     * ✔ Email Sending
+     */
+
+    await otpService.resendOtp(
+      email,
+      'email_verify',
+      {
+        name: user.name,
+      }
+    );
+
+    return true;
+
+  }
+  /**
+ * ==========================================================
+ * Forgot Password
+ * ==========================================================
+ */
+  async forgotPassword(email) {
+
+    const user = await User.findOne({
+      email: email.trim().toLowerCase()
+    });
+
+    // Security:
+    // Don't reveal whether user exists or not
+    if (!user) {
       return true;
-    } catch {
-      return false;
     }
-  },
 
-  getUser:         () => storage.get('user'),
-  getToken:        () => localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken'),
-  getRefreshToken: () => localStorage.getItem('refreshToken') || sessionStorage.getItem('refreshToken'),
-
-  updateUser: (userData) => {
-    const current = authService.getUser() || {};
-    const updated = { ...current, ...userData };
-    storage.set('user', updated);
-    return updated;
-  },
-
-  clearAuthData: () => {
-    ['accessToken', 'refreshToken', 'user'].forEach((k) => storage.remove(k));
-    sessionStorage.clear();
-  },
-
-  // ── Role helpers ──────────────────────────────────────────────────────────
-  hasRole:    (role) => authService.getUser()?.role === role,
-  isAdmin:    () => ['super_admin', 'sub_admin'].includes(authService.getUser()?.role),
-  isVendor:   () => authService.getUser()?.role === 'vendor',
-  isCustomer: () => authService.getUser()?.role === 'customer',
-
-  // ── Token expiry helpers ──────────────────────────────────────────────────
-  getTokenExpiry: () => {
-    const token = authService.getToken();
-    if (!token) return null;
-    try { return new Date(JSON.parse(atob(token.split('.')[1])).exp * 1000); } catch { return null; }
-  },
-
-  isTokenExpiringSoon: () => {
-    const token = authService.getToken();
-    if (!token) return false;
-    try {
-      const exp = JSON.parse(atob(token.split('.')[1])).exp * 1000;
-      return (exp - Date.now()) < 5 * 60 * 1000;
-    } catch { return true; }
-  },
-
-  autoRefreshToken: async () => {
-    if (!authService.isAuthenticated()) return false;
-    if (authService.isTokenExpiringSoon()) {
-      try {
-        const rt = authService.getRefreshToken();
-        if (rt) { await authService.refreshToken(rt); return true; }
-      } catch {
-        authService.clearAuthData();
-        window.location.href = '/login';
-        return false;
+    await otpService.createAndSendOtp(
+      email,
+      'forgot_password',
+      {
+        name: user.name,
       }
-    }
-    return false;
-  },
-};
+    );
 
-module.exports = authService;
+    return true;
+
+  }
+
+  /**
+   * ==========================================================
+   * Reset Password
+   * ==========================================================
+   */
+  async resetPassword(email, otp, newPassword) {
+
+    // Verify OTP
+    await otpService.verifyOtp(
+      email,
+      otp,
+      'forgot_password'
+    );
+
+    // Find User
+    const user = await User.findOne({
+      email: email.trim().toLowerCase()
+    });
+
+    if (!user) {
+      throw new ApiError(
+        404,
+        'User not found'
+      );
+    }
+
+    // Hash New Password
+    user.password =
+      await bcrypt.hash(
+        newPassword,
+        SALT_ROUNDS
+      );
+
+    user.passwordChangedAt = new Date();
+
+    await user.save();
+
+    // Logout from all devices
+    await Session.deleteMany({
+      user: user._id,
+    });
+
+    return true;
+
+  }
+
+}
+
+module.exports = new AuthService();

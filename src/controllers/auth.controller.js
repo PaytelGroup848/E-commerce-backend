@@ -1,26 +1,16 @@
 const authService = require('../services/auth.service');
-const settingsService = require('../services/settings.service');
 const ApiResponse = require('../utils/ApiResponse');
-const ApiError = require('../utils/ApiError');
 
 class AuthController {
   async register(req, res, next) {
     try {
-      const { name, email, password, phone, role } = req.body;
-      
-      // If trying to register as vendor, check if vendor registration is enabled
-      if (role === 'vendor') {
-        const vendorStatus = await settingsService.getVendorRegistrationStatus();
-        if (!vendorStatus.isEnabled) {
-          throw new ApiError(403, 'Vendor registration is currently disabled by admin');
-        }
-      }
+      const { name, email, password, phone } = req.body;
       
       const ipAddress = req.ip || req.connection.remoteAddress;
       const userAgent = req.headers['user-agent'];
 
       const result = await authService.register(
-        { name, email, password, phone, role: role || 'customer' },
+        { name, email, password, phone },
         ipAddress,
         userAgent
       );
@@ -36,7 +26,6 @@ class AuthController {
       res.status(201).json(
         ApiResponse.success('Registration successful. Please verify your email', {
           user: result.user,
-          accessToken: result.accessToken,
         })
       );
     } catch (error) {

@@ -1,14 +1,14 @@
 const nodemailer = require('nodemailer');
 
 // ─── Brand config ─────────────────────────────────────────────────────────────
-const BRAND_NAME  = process.env.BRAND_NAME  || 'QubanHC';
+const BRAND_NAME = process.env.BRAND_NAME || 'QubanHC';
 const BRAND_COLOR = process.env.BRAND_COLOR || '#0d9488'; // teal-600
-const FROM_EMAIL  = process.env.SMTP_FROM   || process.env.SMTP_USER;
+const FROM_EMAIL = process.env.SMTP_FROM || process.env.SMTP_USER;
 
 class EmailService {
   constructor() {
     this._transporter = null;
-    this._ready       = false;
+    this._ready = false;
     this._init();
   }
 
@@ -18,26 +18,25 @@ class EmailService {
     const pass = process.env.SMTP_PASS;
 
     if (!user || !pass) {
-      console.warn('⚠️  SMTP_USER / SMTP_PASS not set — emails will be logged only');
+      console.warn('  SMTP_USER / SMTP_PASS not set — emails will be logged only');
       this._logOnly = true;
       return;
     }
 
     this._transporter = nodemailer.createTransport({
-      service: process.env.SMTP_SERVICE || 'gmail', // gmail works out-of-the-box
-      host:    process.env.SMTP_HOST    || 'smtp.gmail.com',
-      port:    parseInt(process.env.SMTP_PORT) || 587,
-      secure:  process.env.SMTP_SECURE === 'true', // true = 465, false = 587 STARTTLS
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT) || 587,
+      secure: process.env.SMTP_SECURE === 'true',
       auth: { user, pass },
     });
 
     // Verify connection on startup
     this._transporter.verify((err) => {
       if (err) {
-        console.error('❌ SMTP connection failed:', err.message);
+        console.error(' SMTP connection failed:', err.message);
         this._logOnly = true;
       } else {
-        console.log('✅ SMTP connected — emails ready');
+        console.log(' SMTP connected — emails ready');
         this._ready = true;
       }
     });
@@ -47,7 +46,7 @@ class EmailService {
   async sendEmail({ to, subject, html }) {
     // Always log in dev
     if (process.env.NODE_ENV === 'development') {
-      console.log(`\n📧 ===== EMAIL =====`);
+      console.log(`\n ===== EMAIL =====`);
       console.log(`To:      ${to}`);
       console.log(`Subject: ${subject}`);
       // Extract OTP from html for easy dev access
@@ -68,10 +67,10 @@ class EmailService {
         subject,
         html,
       });
-      console.log(`✅ Email sent to ${to} — messageId: ${info.messageId}`);
+      console.log(` Email sent to ${to} — messageId: ${info.messageId}`);
       return info;
     } catch (err) {
-      console.error(`❌ Failed to send email to ${to}:`, err.message);
+      console.error(` Failed to send email to ${to}:`, err.message);
       // Don't crash the app — just warn
       if (process.env.NODE_ENV !== 'production') return { messageId: 'failed-dev' };
       throw err;
@@ -130,7 +129,7 @@ class EmailService {
   // ── 1. Email Verification OTP ───────────────────────────────────────────────
   async sendVerificationEmail(email, name, otp) {
     const html = this._wrap(`
-      <h2 style="margin:0 0 8px;font-size:22px;color:#111827;">Verify your email 📧</h2>
+      <h2 style="margin:0 0 8px;font-size:22px;color:#111827;">Verify your email </h2>
       <p style="margin:0 0 4px;font-size:15px;color:#374151;">Hello <strong>${name}</strong>,</p>
       <p style="margin:0 0 16px;font-size:15px;color:#6b7280;">
         Welcome to ${BRAND_NAME}! Use the OTP below to verify your email address and activate your account.
@@ -151,15 +150,63 @@ class EmailService {
   // ── 2. Password Reset OTP ───────────────────────────────────────────────────
   async sendPasswordResetEmail(email, name, otp) {
     const html = this._wrap(`
-      <h2 style="margin:0 0 8px;font-size:22px;color:#111827;">Reset your password 🔐</h2>
-      <p style="margin:0 0 4px;font-size:15px;color:#374151;">Hello <strong>${name}</strong>,</p>
-      <p style="margin:0 0 16px;font-size:15px;color:#6b7280;">
-        We received a request to reset the password for your ${BRAND_NAME} account. Use the OTP below:
-      </p>
-      ${this._otpBox(otp)}
-      <p style="font-size:14px;color:#ef4444;margin:0;">
-        ⚠️ If you didn't request a password reset, please ignore this email or contact support immediately.
-      </p>
+    <div
+style="
+background:#fef2f2;
+border-left:4px solid #ef4444;
+padding:16px;
+margin-top:24px;
+border-radius:8px;
+">
+
+<h3
+style="
+margin:0;
+color:#b91c1c;
+font-size:16px;
+">
+Security Notice
+</h3>
+
+<p
+style="
+margin-top:10px;
+color:#7f1d1d;
+font-size:14px;
+line-height:1.7;
+">
+If you did not request this password reset, someone may be trying to access your account.
+
+We recommend changing your password immediately if you suspect unauthorized activity.
+
+For assistance, please contact the QubanHC Support Team.
+</p>
+
+</div>
+
+
+<div style="text-align:center;margin-top:28px;">
+
+<a
+href="mailto:support@qubanhc.com"
+style="
+background:#111827;
+color:white;
+padding:12px 22px;
+border-radius:8px;
+text-decoration:none;
+font-weight:700;
+display:inline-block;
+">
+
+Contact Support
+
+</a>
+
+</div>
+
+
+
     `);
 
     return this.sendEmail({
@@ -179,7 +226,7 @@ class EmailService {
       </p>
       ${this._otpBox(otp)}
       <p style="font-size:14px;color:#ef4444;margin:0;">
-        ⚠️ If you did not request this, please secure your account immediately.
+         If you did not request this, please secure your account immediately.
       </p>
     `);
 

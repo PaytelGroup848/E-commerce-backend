@@ -20,7 +20,7 @@ const orderItemSchema = new mongoose.Schema({
   total: { type: Number, required: true },
   image: { type: String, default: null },
   variantName: { type: String, default: null },
-  vendor: { type: mongoose.Schema.Types.ObjectId, ref: "User", default:null },
+  vendor: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   vendorCommission: { type: Number, default: 0 },
   vendorEarnings: { type: Number, default: 0 },
   status: {
@@ -40,7 +40,7 @@ const orderItemSchema = new mongoose.Schema({
 const paymentDetailsSchema = new mongoose.Schema({
   method: {
     type: String,
-    enum: ["cod", "razorpay", "stripe", "paypal", "bank_transfer"],
+    enum: ["cod", "razorpay", "cashfree", "stripe", "paypal", "bank_transfer"],
     required: true,
   },
   status: {
@@ -52,9 +52,14 @@ const paymentDetailsSchema = new mongoose.Schema({
   paymentId: { type: String, default: null },
   orderId: { type: String, default: null },
   signature: { type: String, default: null },
+
+  cashfreeOrderId: { type: String, default: null },
+  cashfreePaymentId: { type: String, default: null },
+  cashfreeStatus: { type: String, default: null },
+  paymentGatewayResponse: { type: Object, default: null },
+  paymentEmailSent: { type: Boolean, default: false },
+
   paidAt: { type: Date, default: null },
-  refundAmount: { type: Number, default: 0 },
-  refundedAt: { type: Date, default: null },
 });
 
 const addressSchema = new mongoose.Schema({
@@ -183,6 +188,10 @@ const orderSchema = new mongoose.Schema(
 
 orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ status: 1, createdAt: -1 });
+
+orderSchema.index({ "payment.cashfreeOrderId": 1 });
+orderSchema.index({ "payment.paymentId": 1 });
+
 orderSchema.index({ vendorId: 1, createdAt: -1 });
 orderSchema.index({ "payment.transactionId": 1 });
 orderSchema.index({ createdAt: -1 });
