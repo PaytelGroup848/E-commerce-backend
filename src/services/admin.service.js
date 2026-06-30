@@ -399,7 +399,6 @@ async createUser(data) {
     const [products, total] = await Promise.all([
       Product.find(query)
         .populate('category', 'name')
-        .populate('vendor', 'name')
         .skip(skip)
         .limit(limit)
         .sort({ createdAt: -1 }),
@@ -412,7 +411,6 @@ async createUser(data) {
   async getProductById(id) {
     const product = await Product.findById(id)
       .populate('category', 'name')
-      .populate('vendor', 'name');
     if (!product) throw new ApiError(404, 'Product not found');
     return product;
   }
@@ -461,7 +459,6 @@ async createUser(data) {
     const [orders, total] = await Promise.all([
       Order.find(query)
         .populate('user', 'name email')
-        .populate('vendor', 'businessName')
         .skip(skip)
         .limit(limit)
         .sort({ createdAt: -1 }),
@@ -474,7 +471,6 @@ async createUser(data) {
   async getOrderById(id) {
     const order = await Order.findById(id)
       .populate('user', 'name email')
-      .populate('vendor', 'businessName');
     if (!order) throw new ApiError(404, 'Order not found');
     return order;
   }

@@ -15,14 +15,6 @@ class AuthController {
         userAgent
       );
 
-      // Set refresh token in cookie
-      res.cookie('refreshToken', result.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      });
-
       res.status(201).json(
         ApiResponse.success('Registration successful. Please verify your email', {
           user: result.user,
@@ -35,11 +27,11 @@ class AuthController {
 
   async login(req, res, next) {
     try {
-      const { email, password } = req.body;
+      const { email, password,  allowedRoles } = req.body;
       const ipAddress = req.ip || req.connection.remoteAddress;
       const userAgent = req.headers['user-agent'];
 
-      const result = await authService.login(email, password, ipAddress, userAgent);
+      const result = await authService.login(email, password, ipAddress, userAgent,allowedRoles);
 
       res.cookie('refreshToken', result.refreshToken, {
         httpOnly: true,

@@ -1,5 +1,6 @@
 const Order = require('../models/order.model');
 const Cart = require('../models/Cart.model');
+const invoiceService = require('./invoice.service');
 const Product = require('../models/Products.model');
 const ProductVariant = require('../models/productvarient.model');
 const ApiError = require('../utils/ApiError');
@@ -321,6 +322,52 @@ class OrderService {
 
     return order;
   }
+
+async markPaymentDoneTest(orderId, userId, userRole) {
+  const query = { _id: orderId };
+
+  if (userRole !== 'super_admin' && userRole !== 'sub_admin') {
+    query.user = userId;
+  }
+
+  const order = await Order.findOne(query);
+
+  if (!order) {
+    throw new ApiError(404, 'Order not found');
+  }
+
+  if (order.payment.status === 'paid') {
+    return order;
+  }
+
+  order.payment.status = 'paid';
+  order.payment.method = order.payment.method || 'cod';
+  order.payment.transactionId = `TEST_TXN_${Date.now()}`;
+  order.payment.paymentId = `TEST_PAY_${Date.now()}`;
+  order.payment.paidAt = new Date();
+
+  order.status = 'confirmed';
+  order.confirmedAt = new Date();
+
+  order.orderStatusHistory.push({
+    status: 'confirmed',
+    message: 'Payment marked as done for testing.',
+    updatedBy: userId,
+    createdAt: new Date(),
+  });
+
+ await order.save();
+
+// Auto-generate invoice after payment done
+await invoiceService.generateInvoice(
+  order._id,
+  userId,
+  'auto'
+);
+
+return order;
+}
+
 
   async cancelOrder(orderId, userId, userRole, reason) {
     const order = await Order.findById(orderId);

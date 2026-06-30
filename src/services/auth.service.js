@@ -68,13 +68,6 @@ class AuthService {
 
     });
 
-    /**
-     * Send Email Verification OTP
-     *
-     * createAndSendOtp() already sends email,
-     * so DON'T call emailService again.
-     */
-
     await otpService.createAndSendOtp(
       user.email,
       'email_verify',
@@ -82,37 +75,6 @@ class AuthService {
         name: user.name,
       }
     );
-
-    /**
-     * Generate Tokens
-     */
-
-    const {
-      accessToken,
-      refreshToken,
-    } = generateTokens(
-      user._id,
-      user.role
-    )
-    await Session.create({
-
-      user: user._id,
-
-      refreshToken,
-
-      deviceId: `${normalizedEmail}_${Date.now()}`,
-
-      deviceName: userAgent || "Unknown Device",
-
-      ipAddress,
-
-      expiresAt: new Date(
-        Date.now() +
-        7 * 24 * 60 * 60 * 1000
-      ),
-
-    });
-
     return {
 
       user: {
@@ -130,11 +92,6 @@ class AuthService {
         isEmailVerified: user.isEmailVerified,
 
       },
-
-      accessToken,
-
-      refreshToken,
-
     };
 
   }
@@ -143,21 +100,27 @@ class AuthService {
  * Login User
  * ==========================================================
  */
-  async login(email, password, ipAddress, userAgent) {
+  async login(email, password, ipAddress, userAgent,  allowedRoles = []) {
 
     // Find user with password
     const normalizedEmail =
       email.trim().toLowerCase();
 
-    const user =
-      await User.findOne({
-        email: normalizedEmail
-      })
-        .select('+password');
+  const user = await User.findOne({
+  email: normalizedEmail
+}).select('+password');
 
-    if (!user) {
-      throw new ApiError(401, 'Invalid email or password');
-    }
+if (!user) {
+  throw new ApiError(401, 'Invalid email or password');
+}
+
+if (
+  Array.isArray(allowedRoles) &&
+  allowedRoles.length > 0 &&
+  !allowedRoles.includes(user.role)
+) {
+  throw new ApiError(403, 'You are not allowed to login from this portal');
+}
 
     // Account Lock Check
     if (
@@ -420,7 +383,7 @@ class AuthService {
     user.isEmailVerified = true;
     user.emailVerifiedAt = new Date();
     user.status = 'active';
-    await user.save();
+    await user.save(); 
     /**
      * Send Welcome Email
      */

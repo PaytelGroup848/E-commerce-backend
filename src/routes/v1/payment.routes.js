@@ -10,9 +10,4 @@ router.post(
   paymentController.createCashfreeOrder
 );
 
-router.post(
-  "/cashfree/webhook",
-  paymentController.cashfreeWebhook
-);
-
 module.exports = router;

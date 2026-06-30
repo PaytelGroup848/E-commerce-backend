@@ -93,6 +93,24 @@ class OrderController {
       next(error);
     }
   }
+  // Fake payment done for testing
+async markPaymentDoneTest(req, res, next) {
+  try {
+    const { id } = req.params;
+
+    const order = await orderService.markPaymentDoneTest(
+      id,
+      req.user._id,
+      req.user.role
+    );
+
+    res.status(200).json(
+      ApiResponse.success('Payment marked as done successfully', { order })
+    );
+  } catch (error) {
+    next(error);
+  }
+}
 }
 
 module.exports = new OrderController();

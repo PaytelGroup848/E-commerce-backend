@@ -61,9 +61,61 @@ class PaymentController {
     const paymentStatus =
       event?.data?.payment?.payment_status ||
       event?.payment_status;
+      const  Order = require("../models/order.model");
 
     const cashfreePaymentId =
-      event?.data?.payment?.cf_payment_id ||
+      event?.data?.payment?.cf_payment_id || Order
+const cashfreeService = require("../services/cashfree.service");
+const ApiResponse = require("../utils/ApiResponse");
+const ApiError = require("../utils/ApiError");
+
+class PaymentController {
+  async createCashfreeOrder(req, res, next) {
+    try {
+      const { orderId } = req.body;
+
+      if (!orderId) {
+        throw new ApiError(400, "Order ID is required");
+      }
+
+      const order = await Order.findOne({
+        orderId,
+        user: req.user._id,
+      });
+
+      if (!order) {
+        throw new ApiError(404, "Order not found");
+      }
+
+      if (order.payment.status === "paid") {
+        throw new ApiError(400, "Order already paid");
+      }
+
+      order.payment.method = "cashfree";
+      order.payment.status = "pending";
+
+      const cashfreeOrder = await cashfreeService.createOrder(order);
+
+      order.payment.cashfreeOrderId = cashfreeOrder.order_id;
+      order.payment.orderId = cashfreeOrder.order_id;
+      order.payment.paymentGatewayResponse = cashfreeOrder;
+
+      await order.save();
+
+      res.status(200).json(
+        ApiResponse.success("Cashfree order created", {
+          orderId: order.orderId,
+          cashfreeOrderId: cashfreeOrder.order_id,
+          paymentSessionId: cashfreeOrder.payment_session_id,
+        })
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+
+module.exports = new PaymentController();
       event?.cf_payment_id ||
       null;
 

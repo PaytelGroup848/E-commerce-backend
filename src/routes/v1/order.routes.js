@@ -20,6 +20,12 @@ router.put(
   orderController.updateOrderStatus
 );
 
+// order done route 
+router.post(
+  '/:id/payment-done-test',
+  orderController.markPaymentDoneTest
+);
+
 // ==================== USER ROUTES ====================
 router.post('/', orderController.createOrder);
 router.get('/my-orders', orderController.getUserOrders);

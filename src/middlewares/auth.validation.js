@@ -10,6 +10,10 @@ const registerSchema = Joi.object({
 const loginSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().required(),
+
+  allowedRoles: Joi.array()
+    .items(Joi.string().valid('customer', 'super_admin', 'sub_admin'))
+    .optional(),
 });
 
 const forgotPasswordSchema = Joi.object({
