@@ -13,13 +13,48 @@ class SettingsController {
       console.error('Error in getSettings:', error);
       // Return default settings instead of error
       res.status(200).json(
-        ApiResponse.success('Settings fetched successfully', { 
+        ApiResponse.success('Settings fetched successfully', {
           settings: {
-            store: { name: 'My eCommerce Store', email: '', phone: '', address: '', currency: 'INR', currencySymbol: '₹' },
-            vendor: { isRegistrationEnabled: true, autoApprove: false, defaultCommissionRate: 10, minWithdrawalAmount: 500 },
-            order: { freeShippingAbove: 999, defaultShippingCharge: 79, isCODEnabled: true, codCharge: 0 },
-            tax: { isGSTEnabled: true, defaultGSTRate: 18, gstNumber: '' },
-            commission: { globalRate: 10, minWithdrawalAmount: 500 }
+            maintenance: {
+              isEnabled: false,
+              message: 'We are under maintenance. Back soon!',
+            },
+
+            support: {
+              email: '',
+              phone: '',
+            },
+
+            billing: {
+              companyName: '',
+              address: '',
+              city: '',
+              state: '',
+              pincode: '',
+              country: 'India',
+              email: '',
+              phone: '',
+              gstin: '',
+              pan: '',
+            },
+
+            order: {
+              freeShippingAbove: 999,
+              defaultShippingCharge: 79,
+              isCODEnabled: true,
+              codCharge: 0,
+              cancellationWindowHours: 24,
+            },
+
+            tax: {
+              isGSTEnabled: true,
+              defaultGSTRate: 18,
+              gstNumber: '',
+            },
+
+            delivery: {
+              partners: [],
+            },
           }
         })
       );
@@ -216,7 +251,7 @@ class SettingsController {
     } catch (error) {
       console.error('Error in getStoreInfo:', error);
       res.status(200).json(
-        ApiResponse.success('Store info fetched', { 
+        ApiResponse.success('Store info fetched', {
           storeInfo: { name: 'My eCommerce Store', email: '', phone: '', address: '', currency: 'INR', currencySymbol: '₹' }
         })
       );

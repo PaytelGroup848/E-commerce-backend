@@ -199,6 +199,7 @@ orderSchema.index({ createdAt: -1, 'payment.status': 1 });
 orderSchema.index({ 'items.product': 1 });
 orderSchema.index({ 'items.vendor': 1 });
 
-const Order = mongoose.models.Order || mongoose.model("Order", orderSchema);
+const Order =
+  mongoose.models.Order || mongoose.model('Order', orderSchema);
 
 module.exports = Order;

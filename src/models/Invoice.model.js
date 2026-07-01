@@ -98,8 +98,6 @@ const invoiceSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
-
-invoiceSchema.index({ invoiceNumber: 1 });
 invoiceSchema.index({ orderId: 1 });
 invoiceSchema.index({ user: 1, createdAt: -1 });
 

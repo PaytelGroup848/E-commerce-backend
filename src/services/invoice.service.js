@@ -5,6 +5,7 @@ const path = require('path');
 const Invoice = require('../models/Invoice.model');
 const Order = require('../models/Order.model');
 const ApiError = require('../utils/ApiError');
+const settingsService = require('./settings.service');
 
 class InvoiceService {
   generateInvoiceNumber() {
@@ -59,7 +60,13 @@ class InvoiceService {
     const fileName = `${invoiceNumber}.pdf`;
     const pdfPath = path.join(invoiceFolder, fileName);
 
-    await this.createPdf(order, invoiceNumber, pdfPath);
+    const settings = await settingsService.getSettings();
+
+    await this.createPdf(order, invoiceNumber, pdfPath, {
+      billing: settings.billing || {},
+      support: settings.support || {},
+      tax: settings.tax || {},
+    });
 
     const invoice = await Invoice.create({
       invoiceNumber,
@@ -84,7 +91,7 @@ class InvoiceService {
     return invoice;
   }
 
-  async createPdf(order, invoiceNumber, pdfPath) {
+  async createPdf(order, invoiceNumber, pdfPath, settings = {}) {
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({
         size: 'A4',
@@ -94,15 +101,48 @@ class InvoiceService {
       const stream = fs.createWriteStream(pdfPath);
       doc.pipe(stream);
 
+
+      const billing = settings.billing || {};
+      const support = settings.support || {};
+      const tax = settings.tax || {};
+
       const company = {
-        name: process.env.COMPANY_NAME || 'QubanHC',
-        email: process.env.COMPANY_EMAIL || 'support@qubanhc.com',
-        phone: process.env.COMPANY_PHONE || '+91 99999 99999',
+        name: billing.companyName || process.env.COMPANY_NAME || 'QubanHC',
+
+        email:
+          billing.email ||
+          support.email ||
+          process.env.COMPANY_EMAIL ||
+          'support@qubanhc.com',
+
+        phone:
+          billing.phone ||
+          support.phone ||
+          process.env.COMPANY_PHONE ||
+          '+91 99999 99999',
+
         address:
+          [
+            billing.address,
+            billing.city,
+            billing.state,
+            billing.pincode,
+            billing.country,
+          ]
+            .filter(Boolean)
+            .join(', ') ||
           process.env.COMPANY_ADDRESS ||
           'Delhi, India',
-        gst: process.env.COMPANY_GST || 'N/A',
+
+        gst:
+          billing.gstin ||
+          tax.gstNumber ||
+          process.env.COMPANY_GST ||
+          'N/A',
+
+        pan: billing.pan || 'N/A',
       };
+
 
       // Header
       doc
@@ -116,7 +156,8 @@ class InvoiceService {
         .text(company.address, 40, 65)
         .text(`Email: ${company.email}`, 40, 80)
         .text(`Phone: ${company.phone}`, 40, 95)
-        .text(`GST: ${company.gst}`, 40, 110);
+        .text(`GST: ${company.gst}`, 40, 110)
+        .text(`PAN: ${company.pan}`, 40, 125);
 
       doc
         .fontSize(22)
@@ -142,7 +183,7 @@ class InvoiceService {
           align: 'right',
         });
 
-      this.drawLine(doc, 140);
+      this.drawLine(doc, 150);
 
       // Customer
       doc
@@ -311,38 +352,77 @@ class InvoiceService {
       stream.on('error', reject);
     });
   }
+async getInvoiceByOrder(orderId, userId, userRole) {
+  const query = { order: orderId };
 
-  async getInvoiceByOrder(orderId, userId, userRole) {
-    const query = { order: orderId };
-
-    if (userRole !== 'super_admin' && userRole !== 'sub_admin') {
-      query.user = userId;
-    }
-
-    const invoice = await Invoice.findOne(query);
-
-    if (!invoice) {
-      throw new ApiError(404, 'Invoice not found');
-    }
-
-    return invoice;
+  if (userRole !== 'super_admin' && userRole !== 'sub_admin') {
+    query.user = userId;
   }
 
-  async getInvoiceById(invoiceId, userId, userRole) {
-    const query = { _id: invoiceId };
+  const invoice = await Invoice.findOne(query)
+    .populate({
+      path: 'order',
+      model: Order,
+      populate: [
+        {
+          path: 'user',
+          select: 'name email phone',
+        },
+        {
+          path: 'items.product',
+          select: 'name sku images price',
+        },
+        {
+          path: 'items.variant',
+          select: 'name sku attributes price image',
+        },
+      ],
+    })
+    .lean();
 
-    if (userRole !== 'super_admin' && userRole !== 'sub_admin') {
-      query.user = userId;
-    }
-
-    const invoice = await Invoice.findOne(query);
-
-    if (!invoice) {
-      throw new ApiError(404, 'Invoice not found');
-    }
-
-    return invoice;
+  if (!invoice) {
+    throw new ApiError(404, 'Invoice not found');
   }
+
+  console.log('POPULATED INVOICE ORDER:', invoice.order);
+
+  return invoice;
+}
+
+async getInvoiceById(invoiceId, userId, userRole) {
+  const query = { _id: invoiceId };
+
+  if (userRole !== 'super_admin' && userRole !== 'sub_admin') {
+    query.user = userId;
+  }
+
+  const invoice = await Invoice.findOne(query)
+    .populate({
+      path: 'order',
+      model: Order,
+      populate: [
+        {
+          path: 'user',
+          select: 'name email phone',
+        },
+        {
+          path: 'items.product',
+          select: 'name sku images price',
+        },
+        {
+          path: 'items.variant',
+          select: 'name sku attributes price image',
+        },
+      ],
+    })
+    .lean();
+
+  if (!invoice) {
+    throw new ApiError(404, 'Invoice not found');
+  }
+
+  return invoice;
+}
 }
 
 module.exports = new InvoiceService();

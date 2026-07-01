@@ -1,6 +1,7 @@
 const Order = require('../models/order.model');
 const Cart = require('../models/Cart.model');
 const invoiceService = require('./invoice.service');
+const settingsService = require('./settings.service');
 const Product = require('../models/Products.model');
 const ProductVariant = require('../models/productvarient.model');
 const ApiError = require('../utils/ApiError');
@@ -107,13 +108,45 @@ class OrderService {
       });
     }
 
-    const couponDiscount = Math.min(cart.appliedCoupon?.discountAmount || 0, subtotal);
-    const couponCode = cart.appliedCoupon?.code || null;
-    const shippingCharge = subtotal >= 999 ? 0 : 79;
-    const taxRate = 18;
-    const taxableAmount = Math.max(subtotal - couponDiscount, 0);
-    const taxAmount = Math.round((taxableAmount * taxRate) / 100);
-    const total = taxableAmount + shippingCharge + taxAmount;
+ const couponDiscount = Math.min(cart.appliedCoupon?.discountAmount || 0, subtotal);
+const couponCode = cart.appliedCoupon?.code || null;
+
+// Settings admin panel se aa rahi hain
+const settings = await settingsService.getSettings();
+
+const orderSettings = settings.order || {};
+const taxSettings = settings.tax || {};
+
+const freeShippingAbove = Number(orderSettings.freeShippingAbove ?? 999);
+const defaultShippingCharge = Number(orderSettings.defaultShippingCharge ?? 79);
+const isCODEnabled = orderSettings.isCODEnabled ?? true;
+const codCharge = Number(orderSettings.codCharge ?? 0);
+
+// Agar admin ne COD off kiya hai aur customer COD choose karta hai,
+// to order create nahi hoga.
+if (paymentMethod === 'cod' && !isCODEnabled) {
+  throw new ApiError(400, 'Cash on Delivery is currently disabled');
+}
+
+const taxableAmount = Math.max(subtotal - couponDiscount, 0);
+
+// Agar amount freeShippingAbove se zyada/equal hai to shipping 0,
+// warna admin settings wali shipping charge lagegi.
+const shippingCharge =
+  taxableAmount >= freeShippingAbove ? 0 : defaultShippingCharge;
+
+// COD selected hai to COD extra charge add hoga.
+const codExtraCharge = paymentMethod === 'cod' ? codCharge : 0;
+
+// Agar GST enabled hai to admin settings wala GST rate lagega,
+// warna tax 0 rahega.
+const taxRate = taxSettings.isGSTEnabled
+  ? Number(taxSettings.defaultGSTRate ?? 18)
+  : 0;
+
+const taxAmount = Math.round((taxableAmount * taxRate) / 100);
+
+const total = taxableAmount + shippingCharge + codExtraCharge + taxAmount;
 
     const order = await Order.create({
       orderId: this.generateOrderId(),

@@ -56,8 +56,14 @@ class SettingsService {
       const settings = await this.getSettings();
       
       // Update each section
-      const sections = ['store', 'vendor', 'order', 'tax', 'commission', 'social', 'seo', 'maintenance', 'email'];
-      for (const section of sections) {
+const sections = [
+  'maintenance',
+  'support',
+  'billing',
+  'order',
+  'tax',
+  'delivery',
+];      for (const section of sections) {
         if (updateData[section]) {
           settings[section] = { ...settings[section], ...updateData[section] };
         }

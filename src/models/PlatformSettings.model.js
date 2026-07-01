@@ -1,78 +1,224 @@
 const mongoose = require('mongoose');
 
+const deliveryPartnerSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      trim: true,
+      required: true,
+    },
+
+    code: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: null,
+    },
+
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+
+    trackingUrlTemplate: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+
+    supportPhone: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+
+    supportEmail: {
+      type: String,
+      default: '',
+      trim: true,
+      lowercase: true,
+    },
+  },
+  { _id: true }
+);
+
 const platformSettingsSchema = new mongoose.Schema(
   {
     key: {
       type: String,
       default: 'platform_settings',
-      unique: true, // ✅ Already creates index
-    },
-
-    store: {
-      name: { type: String, default: 'My eCommerce Store' },
-      email: { type: String, default: '' },
-      phone: { type: String, default: '' },
-      address: { type: String, default: '' },
-      logo: {
-        url: { type: String, default: null },
-        publicId: { type: String, default: null },
-      },
-      favicon: { type: String, default: null },
-      currency: { type: String, default: 'INR' },
-      currencySymbol: { type: String, default: '₹' },
-    },
-
-    vendor: {
-      isRegistrationEnabled: { type: Boolean, default: true },
-      autoApprove: { type: Boolean, default: false },
-      defaultCommissionRate: { type: Number, default: 10 },
-      minWithdrawalAmount: { type: Number, default: 500 },
-      vendorApprovalRequired: { type: Boolean, default: true },
-    },
-
-    order: {
-      freeShippingAbove: { type: Number, default: 999 },
-      defaultShippingCharge: { type: Number, default: 79 },
-      isCODEnabled: { type: Boolean, default: true },
-      codCharge: { type: Number, default: 0 },
-      cancellationWindowHours: { type: Number, default: 24 },
-      returnWindowDays: { type: Number, default: 7 },
-    },
-
-    tax: {
-      isGSTEnabled: { type: Boolean, default: true },
-      defaultGSTRate: { type: Number, default: 18 },
-      gstNumber: { type: String, default: '' },
-    },
-
-    commission: {
-      globalRate: { type: Number, default: 10 },
-      minWithdrawalAmount: { type: Number, default: 500 },
-    },
-
-    social: {
-      facebook: { type: String, default: '' },
-      instagram: { type: String, default: '' },
-      twitter: { type: String, default: '' },
-      youtube: { type: String, default: '' },
-      whatsapp: { type: String, default: '' },
-    },
-
-    seo: {
-      metaTitle: { type: String, default: '' },
-      metaDescription: { type: String, default: '' },
-      keywords: { type: [String], default: [] },
+      unique: true,
+      index: true,
     },
 
     maintenance: {
-      isEnabled: { type: Boolean, default: false },
-      message: { type: String, default: 'We are under maintenance. Back soon!' },
+      isEnabled: {
+        type: Boolean,
+        default: false,
+      },
+
+      message: {
+        type: String,
+        default: 'We are under maintenance. Back soon!',
+        trim: true,
+      },
     },
 
-    email: {
-      isEnabled: { type: Boolean, default: true },
-      fromName: { type: String, default: 'My Store' },
-      fromEmail: { type: String, default: '' },
+    support: {
+      email: {
+        type: String,
+        default: '',
+        trim: true,
+        lowercase: true,
+      },
+
+      phone: {
+        type: String,
+        default: '',
+        trim: true,
+      },
+    },
+
+    billing: {
+      companyName: {
+        type: String,
+        default: '',
+        trim: true,
+      },
+
+      address: {
+        type: String,
+        default: '',
+        trim: true,
+      },
+
+      city: {
+        type: String,
+        default: '',
+        trim: true,
+      },
+
+      state: {
+        type: String,
+        default: '',
+        trim: true,
+      },
+
+      pincode: {
+        type: String,
+        default: '',
+        trim: true,
+      },
+
+      country: {
+        type: String,
+        default: 'India',
+        trim: true,
+      },
+
+      email: {
+        type: String,
+        default: '',
+        trim: true,
+        lowercase: true,
+      },
+
+      phone: {
+        type: String,
+        default: '',
+        trim: true,
+      },
+
+      gstin: {
+        type: String,
+        default: '',
+        trim: true,
+        uppercase: true,
+      },
+
+      pan: {
+        type: String,
+        default: '',
+        trim: true,
+        uppercase: true,
+      },
+    },
+
+    order: {
+      freeShippingAbove: {
+        type: Number,
+        default: 999,
+        min: 0,
+      },
+
+      defaultShippingCharge: {
+        type: Number,
+        default: 79,
+        min: 0,
+      },
+
+      isCODEnabled: {
+        type: Boolean,
+        default: true,
+      },
+
+      codCharge: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
+      cancellationWindowHours: {
+        type: Number,
+        default: 24,
+        min: 0,
+      },
+    },
+
+    tax: {
+      isGSTEnabled: {
+        type: Boolean,
+        default: true,
+      },
+
+      defaultGSTRate: {
+        type: Number,
+        default: 18,
+        min: 0,
+      },
+
+      gstNumber: {
+        type: String,
+        default: '',
+        trim: true,
+        uppercase: true,
+      },
+    },
+
+    delivery: {
+      partners: {
+        type: [deliveryPartnerSchema],
+        default: [
+          {
+            name: 'Delhivery',
+            code: 'delhivery',
+            isActive: true,
+            trackingUrlTemplate: 'https://www.delhivery.com/track/package/{trackingNumber}',
+          },
+          {
+            name: 'Shiprocket',
+            code: 'shiprocket',
+            isActive: true,
+            trackingUrlTemplate: 'https://shiprocket.co/tracking/{trackingNumber}',
+          },
+          {
+            name: 'Blue Dart',
+            code: 'bluedart',
+            isActive: true,
+            trackingUrlTemplate: 'https://www.bluedart.com/tracking?trackFor=0&trackNo={trackingNumber}',
+          },
+        ],
+      },
     },
 
     updatedBy: {
@@ -86,9 +232,8 @@ const platformSettingsSchema = new mongoose.Schema(
   }
 );
 
-// ✅ REMOVED - Duplicate index (unique: true already creates it)
-// platformSettingsSchema.index({ key: 1 });
-
-const PlatformSettings = mongoose.model('PlatformSettings', platformSettingsSchema);
+const PlatformSettings =
+  mongoose.models.PlatformSettings ||
+  mongoose.model('PlatformSettings', platformSettingsSchema);
 
 module.exports = PlatformSettings;

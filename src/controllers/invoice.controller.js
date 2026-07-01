@@ -1,5 +1,6 @@
-const fs = require('fs');
 
+const fs = require('fs');
+const settingsService = require('../services/settings.service');
 const invoiceService = require('../services/invoice.service');
 const ApiResponse = require('../utils/ApiResponse');
 
@@ -22,23 +23,32 @@ class InvoiceController {
     }
   }
 
-  async getInvoiceByOrder(req, res, next) {
-    try {
-      const { orderId } = req.params;
+async getInvoiceByOrder(req, res, next) {
+  try {
+    const { orderId } = req.params;
 
-      const invoice = await invoiceService.getInvoiceByOrder(
-        orderId,
-        req.user._id,
-        req.user.role
-      );
+    const invoice = await invoiceService.getInvoiceByOrder(
+      orderId,
+      req.user._id,
+      req.user.role
+    );
 
-      res.status(200).json(
-        ApiResponse.success('Invoice fetched successfully', { invoice })
-      );
-    } catch (error) {
-      next(error);
-    }
+    const settings = await settingsService.getSettings();
+
+    res.status(200).json(
+      ApiResponse.success('Invoice fetched successfully', {
+        invoice,
+        settings: {
+          billing: settings.billing || {},
+          support: settings.support || {},
+          tax: settings.tax || {},
+        },
+      })
+    );
+  } catch (error) {
+    next(error);
   }
+}
 
   async downloadInvoice(req, res, next) {
     try {
@@ -57,10 +67,7 @@ class InvoiceController {
         });
       }
 
-      res.download(
-        invoice.pdfPath,
-        `${invoice.invoiceNumber}.pdf`
-      );
+      res.download(invoice.pdfPath, `${invoice.invoiceNumber}.pdf`);
     } catch (error) {
       next(error);
     }
