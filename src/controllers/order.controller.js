@@ -81,18 +81,41 @@ class OrderController {
   }
 
   // Update order status (Admin only)
-  async updateOrderStatus(req, res, next) {
-    try {
-      const { id } = req.params;
-      const { status, reason } = req.body;
-      const order = await orderService.updateOrderStatus(id, status, req.user._id, req.user.role, reason);
-      res.status(200).json(
-        ApiResponse.success('Order status updated successfully', { order })
-      );
-    } catch (error) {
-      next(error);
-    }
+ async updateOrderStatus(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { status, reason } = req.body;
+
+    const order = await orderService.updateOrderStatus(
+      id,
+      status,
+      req.user._id,
+      req.user.role,
+      reason
+    );
+
+    res.status(200).json(
+      ApiResponse.success('Order status updated successfully', { order })
+    );
+  } catch (error) {
+    next(error);
   }
+}
+
+async deleteOrder(req, res, next) {
+  try {
+    const { id } = req.params;
+
+    const order = await orderService.deleteOrder(id, req.user.role);
+
+    res.status(200).json(
+      ApiResponse.success('Order deleted successfully', { order })
+    );
+  } catch (error) {
+    next(error);
+  }
+}
+
   // Fake payment done for testing
 async markPaymentDoneTest(req, res, next) {
   try {

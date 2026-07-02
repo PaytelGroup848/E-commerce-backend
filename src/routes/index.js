@@ -15,6 +15,10 @@ const orderRoutes = require('./v1/order.routes');
 const uploadRoutes = require('./v1/upload.routes');
 const invoiceRoutes = require("./v1/invoice.route");
 const paymentRoutes = require("./v1/payment.routes");
+const supportRoutes =  require("./v1/support.routes");
+
+// Support routes
+router.use('/support', supportRoutes);
 
 
 

@@ -1,6 +1,5 @@
 const User = require('../models/User.model');
 const Order = require('../models/order.model');
-const Vendor = require('../models/vendor.model');
 const bcrypt = require('bcryptjs');
 const ApiError = require('../utils/ApiError');
 
@@ -237,9 +236,7 @@ class UserService {
     if (user.role === 'super_admin') {
       throw new ApiError(403, 'Cannot delete super admin');
     }
-    
-    // Delete vendor record if exists
-    await Vendor.findOneAndDelete({ user: userId });
+  
     
     // Delete user
     await user.deleteOne();

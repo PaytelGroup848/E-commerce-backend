@@ -55,6 +55,21 @@ const paymentDetailsSchema = new mongoose.Schema({
 
   cashfreeOrderId: { type: String, default: null },
   cashfreePaymentId: { type: String, default: null },
+
+  cashfreePaymentSessionId: {
+    type: String,
+    default: null,
+  },
+  cashfreeCfOrderId: {
+    type: String,
+    default: null,
+  },
+
+  cashfreeRawResponse: {
+    type: Object,
+    default: null,
+  },
+
   cashfreeStatus: { type: String, default: null },
   paymentGatewayResponse: { type: Object, default: null },
   paymentEmailSent: { type: Boolean, default: false },
@@ -140,13 +155,63 @@ const orderSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["pending", "confirmed", "processing", "shipped", "delivered", "cancelled", "returned"],
-      default: "pending",
+      enum: [
+        'pending',
+        'confirmed',
+        'packed',
+        'picking_dispatch',
+        'delivered',
+        'cancelled',
+        'returned',
+      ],
+      default: 'pending',
     },
 
-    orderStatusHistory: {
-      type: [timelineSchema],
-      default: [],
+    statusHistory: [
+      {
+        status: {
+          type: String,
+          enum: [
+            'pending',
+            'confirmed',
+            'packed',
+            'picking_dispatch',
+            'delivered',
+            'cancelled',
+            'returned',
+          ],
+        },
+        previousStatus: {
+          type: String,
+        },
+        note: {
+          type: String,
+          trim: true,
+        },
+        changedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+        },
+        changedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+
+    deliveredAt: {
+      type: Date,
+      default: null,
+    },
+
+    cancelledAt: {
+      type: Date,
+      default: null,
+    },
+
+    cancellationReason: {
+      type: String,
+      trim: true,
     },
 
     customerNote: {

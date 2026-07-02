@@ -29,7 +29,7 @@ class OrderService {
       throw new ApiError(400, 'Shipping address is required');
     }
 
-    const allowedPaymentMethods = ['cod', 'razorpay', 'stripe'];
+    const allowedPaymentMethods = ['cod', 'razorpay', 'stripe','cashfree'];
     if (!allowedPaymentMethods.includes(paymentMethod)) {
       throw new ApiError(400, 'Invalid payment method');
     }
@@ -290,51 +290,92 @@ const total = taxableAmount + shippingCharge + codExtraCharge + taxAmount;
     };
   }
 
-  async updateOrderStatus(orderId, status, userId, userRole, reason = null) {
-    const order = await Order.findById(orderId);
-    if (!order) {
-      throw new ApiError(404, 'Order not found');
-    }
+ async updateOrderStatus(orderId, status, userId, userRole, reason = '') {
+  const allowedStatuses = [
+    'pending',
+    'confirmed',
+    'packed',
+    'picking_dispatch',
+    'delivered',
+    'cancelled',
+    'returned',
+  ];
 
-    if (userRole !== 'super_admin' && userRole !== 'sub_admin') {
-      throw new ApiError(403, 'Only admins can update order status');
-    }
-
-    const oldStatus = order.status;
-    order.status = status;
-
-    switch (status) {
-      case 'confirmed':
-        order.confirmedAt = new Date();
-        break;
-      case 'processing':
-        order.processedAt = new Date();
-        break;
-      case 'shipped':
-        order.shippedAt = new Date();
-        break;
-      case 'delivered':
-        order.deliveredAt = new Date();
-        break;
-      case 'cancelled':
-        order.cancelledAt = new Date();
-        order.cancellationReason = reason;
-        break;
-      default:
-        break;
-    }
-
-    order.orderStatusHistory.push({
-      status,
-      message: `Order status changed from ${oldStatus} to ${status}`,
-      updatedBy: userId,
-      createdAt: new Date(),
-    });
-
-    await order.save();
-
-    return order;
+  if (!allowedStatuses.includes(status)) {
+    throw new ApiError(400, 'Invalid order status');
   }
+
+  if (!['super_admin', 'sub_admin'].includes(userRole)) {
+    throw new ApiError(403, 'Only admin can update order status');
+  }
+
+  const order = await Order.findById(orderId)
+    .populate('user', 'name email phone')
+    .populate('items.product', 'name sku images price')
+    .populate('items.variant', 'name sku attributes price image');
+
+  if (!order) {
+    throw new ApiError(404, 'Order not found');
+  }
+
+  const oldStatus = order.status;
+
+  if (oldStatus === status) {
+    throw new ApiError(400, 'Order already has this status');
+  }
+
+  order.status = status;
+
+  if (status === 'confirmed') {
+    order.confirmedAt = order.confirmedAt || new Date();
+  }
+
+  if (status === 'packed') {
+    order.packedAt = new Date();
+  }
+
+  if (status === 'picking_dispatch') {
+    order.dispatchedAt = new Date();
+  }
+
+  if (status === 'delivered') {
+    order.deliveredAt = new Date();
+  }
+
+  if (status === 'cancelled') {
+    order.cancelledAt = new Date();
+    order.cancellationReason = reason || 'Cancelled by admin';
+  }
+
+  order.orderStatusHistory = order.orderStatusHistory || [];
+
+  order.orderStatusHistory.push({
+    status,
+    message: reason || `Order status changed from ${oldStatus} to ${status}`,
+    updatedBy: userId,
+    createdAt: new Date(),
+  });
+
+  await order.save();
+
+  return order;
+}
+
+async deleteOrder(orderId, userRole) {
+  if (!['super_admin', 'sub_admin'].includes(userRole)) {
+    throw new ApiError(403, 'Only admin can delete orders');
+  }
+
+  const order = await Order.findById(orderId);
+
+  if (!order) {
+    throw new ApiError(404, 'Order not found');
+  }
+
+  await Order.findByIdAndDelete(orderId);
+
+  return order;
+}
 
   async updatePaymentStatus(orderId, paymentStatus, transactionId = null) {
     const order = await Order.findById(orderId);
@@ -355,7 +396,6 @@ const total = taxableAmount + shippingCharge + codExtraCharge + taxAmount;
 
     return order;
   }
-
 async markPaymentDoneTest(orderId, userId, userRole) {
   const query = { _id: orderId };
 
@@ -382,6 +422,11 @@ async markPaymentDoneTest(orderId, userId, userRole) {
   order.status = 'confirmed';
   order.confirmedAt = new Date();
 
+  // ✅ Important fix
+  order.orderStatusHistory = Array.isArray(order.orderStatusHistory)
+    ? order.orderStatusHistory
+    : [];
+
   order.orderStatusHistory.push({
     status: 'confirmed',
     message: 'Payment marked as done for testing.',
@@ -389,16 +434,12 @@ async markPaymentDoneTest(orderId, userId, userRole) {
     createdAt: new Date(),
   });
 
- await order.save();
+  await order.save();
 
-// Auto-generate invoice after payment done
-await invoiceService.generateInvoice(
-  order._id,
-  userId,
-  'auto'
-);
+  // Auto-generate invoice after payment done
+  await invoiceService.generateInvoice(order._id, userId, 'auto');
 
-return order;
+  return order;
 }
 
 
@@ -435,6 +476,10 @@ return order;
     order.status = 'cancelled';
     order.cancelledAt = new Date();
     order.cancellationReason = reason;
+       
+      order.orderStatusHistory = Array.isArray(order.orderStatusHistory)
+  ? order.orderStatusHistory
+  : [];
 
     order.orderStatusHistory.push({
       status: 'cancelled',

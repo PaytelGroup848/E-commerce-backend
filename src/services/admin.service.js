@@ -1,5 +1,4 @@
 const User = require('../models/User.model');
-const Vendor = require('../models/vendor.model');
 const Order = require('../models/Order.model');
 const Product = require('../models/Products.model');
 const Category = require('../models/Categories.model');
@@ -15,9 +14,8 @@ class AdminService {
     const now = new Date();
     const startOfToday = new Date(now.setHours(0, 0, 0, 0));
     
-    const [totalUsers, totalVendors, totalOrders, totalProducts, todayOrders, pendingOrders] = await Promise.all([
+    const [totalUsers, totalOrders, totalProducts, todayOrders, pendingOrders] = await Promise.all([
       User.countDocuments(),
-      Vendor.countDocuments(),
       Order.countDocuments(),
       Product.countDocuments(),
       Order.countDocuments({ createdAt: { $gte: startOfToday } }),
@@ -32,7 +30,6 @@ class AdminService {
     return {
       stats: {
         totalUsers,
-        totalVendors,
         totalOrders,
         totalProducts,
         todayOrders,
@@ -40,107 +37,7 @@ class AdminService {
         totalRevenue: totalRevenue[0]?.total || 0,
       },
       recentOrders: await Order.find().sort({ createdAt: -1 }).limit(5).populate('user', 'name email'),
-      topVendors: await Vendor.find().sort({ totalRevenue: -1 }).limit(5).select('businessName totalRevenue'),
     };
-  }
-
-  // ==================== VENDOR MANAGEMENT ====================
-  async getAllVendors(page, limit, filters) {
-    const query = {};
-    if (filters.status) query.status = filters.status;
-    if (filters.search) {
-      query.$or = [
-        { businessName: { $regex: filters.search, $options: 'i' } },
-        { businessEmail: { $regex: filters.search, $options: 'i' } }
-      ];
-    }
-
-    const skip = (page - 1) * limit;
-    const [vendors, total] = await Promise.all([
-      Vendor.find(query).populate('user', 'name email').skip(skip).limit(limit).sort({ createdAt: -1 }),
-      Vendor.countDocuments(query)
-    ]);
-
-    return { vendors, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
-  }
-
-  async getVendorById(id) {
-    const vendor = await Vendor.findById(id).populate('user', 'name email phone');
-    if (!vendor) throw new ApiError(404, 'Vendor not found');
-    return vendor;
-  }
-
-  async createVendor(data) {
-    const { businessName, businessEmail, businessPhone, businessDescription, businessAddress, gstin, status } = data;
-    
-    // Check if vendor exists
-    const existingVendor = await Vendor.findOne({ businessEmail });
-    if (existingVendor) throw new ApiError(400, 'Vendor with this email already exists');
-
-    // Create user account for vendor
-    const randomPassword = Math.random().toString(36).slice(-8);
-    const salt = await bcrypt.genSalt(12);
-    const hashedPassword = await bcrypt.hash(randomPassword, salt);
-
-    const user = await User.create({
-      name: businessName,
-      email: businessEmail,
-      phone: businessPhone,
-      password: hashedPassword,
-      role: 'vendor',
-      status: 'active'
-    });
-
-    const vendor = await Vendor.create({
-      user: user._id,
-      businessName,
-      businessEmail,
-      businessPhone,
-      businessDescription,
-      businessAddress,
-      gstin,
-      status: status || 'pending',
-    });
-
-    return vendor;
-  }
-
-  async approveVendor(id, adminId) {
-    const vendor = await Vendor.findById(id);
-    if (!vendor) throw new ApiError(404, 'Vendor not found');
-    vendor.status = 'approved';
-    vendor.approvalInfo = { actionBy: adminId, actionAt: new Date() };
-    await vendor.save();
-    await User.findByIdAndUpdate(vendor.user, { role: 'vendor', status: 'active' });
-    return vendor;
-  }
-
-  async rejectVendor(id, adminId, reason) {
-    const vendor = await Vendor.findById(id);
-    if (!vendor) throw new ApiError(404, 'Vendor not found');
-    vendor.status = 'rejected';
-    vendor.approvalInfo = { actionBy: adminId, actionAt: new Date(), rejectionReason: reason };
-    await vendor.save();
-    return vendor;
-  }
-
-  async suspendVendor(id, adminId, reason) {
-    const vendor = await Vendor.findById(id);
-    if (!vendor) throw new ApiError(404, 'Vendor not found');
-    vendor.status = 'suspended';
-    vendor.approvalInfo = { ...vendor.approvalInfo, suspensionReason: reason };
-    await vendor.save();
-    await User.findByIdAndUpdate(vendor.user, { status: 'suspended' });
-    return vendor;
-  }
-
-  async activateVendor(id, adminId) {
-    const vendor = await Vendor.findById(id);
-    if (!vendor) throw new ApiError(404, 'Vendor not found');
-    vendor.status = 'approved';
-    await vendor.save();
-    await User.findByIdAndUpdate(vendor.user, { status: 'active' });
-    return vendor;
   }
 
   // ==================== USER MANAGEMENT ====================
@@ -277,8 +174,6 @@ async createUser(data) {
       { $set: { customerDeleted: true } }
     );
 
-    // Vendor record delete if exists
-    await Vendor.findOneAndDelete({ user: userId });
 
     // User delete karo
     await User.findByIdAndDelete(userId);
@@ -420,7 +315,6 @@ async createUser(data) {
       ...data,
       createdBy: adminId,
       isAdminProduct: true,
-      vendor: null,
       status: 'active'
     });
     return product;
