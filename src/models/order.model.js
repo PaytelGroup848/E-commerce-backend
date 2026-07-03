@@ -133,6 +133,26 @@ const orderSchema = new mongoose.Schema(
       required: true,
     },
 
+    invoice: {
+  isGenerated: {
+    type: Boolean,
+    default: false,
+  },
+  invoiceId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Invoice",
+    default: null,
+  },
+  invoiceNumber: {
+    type: String,
+    default: null,
+  },
+  generatedAt: {
+    type: Date,
+    default: null,
+  },
+},
+
     shippingAddress: {
       type: addressSchema,
       required: true,

@@ -3,14 +3,27 @@ const ApiError = require('../utils/ApiError');
 
 class CashfreeService {
   constructor() {
-    this.appId = process.env.CASHFREE_APP_ID;
-    this.secretKey = process.env.CASHFREE_SECRET_KEY;
-    this.apiVersion = process.env.CASHFREE_API_VERSION || '2025-01-01';
+    this.env = String(process.env.CASHFREE_ENV || 'sandbox')
+      .trim()
+      .toLowerCase();
+
+    this.appId = String(process.env.CASHFREE_APP_ID || '').trim();
+    this.secretKey = String(process.env.CASHFREE_SECRET_KEY || '').trim();
+
+    // Stable Cashfree PG API version
+    this.apiVersion = String(
+      process.env.CASHFREE_API_VERSION || '2023-08-01'
+    ).trim();
 
     this.baseUrl =
-      process.env.CASHFREE_ENV === 'production'
+      this.env === 'production'
         ? 'https://api.cashfree.com/pg'
         : 'https://sandbox.cashfree.com/pg';
+
+    console.log('Cashfree Mode:', this.env);
+    console.log('Cashfree Base URL:', this.baseUrl);
+    console.log('Cashfree API Version:', this.apiVersion);
+    console.log('Cashfree App ID last 4:', this.appId ? this.appId.slice(-4) : 'missing');
   }
 
   getHeaders() {
@@ -45,6 +58,9 @@ class CashfreeService {
         order.user?.phone ||
         '9999999999';
 
+      const frontendUrl = String(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+      const backendUrl = String(process.env.BACKEND_URL || 'http://localhost:5000').replace(/\/$/, '');
+
       const payload = {
         order_id: String(order.orderId),
         order_amount: Number(order.total),
@@ -58,12 +74,21 @@ class CashfreeService {
         },
 
         order_meta: {
-          return_url: `${process.env.FRONTEND_URL}/payment/cashfree/success?order_id=${order.orderId}`,
-          notify_url: `${process.env.BACKEND_URL}/api/v1/payments/cashfree/webhook`,
+          return_url: `${frontendUrl}/payment/cashfree/success?order_id=${order.orderId}`,
+          notify_url: `${backendUrl}/api/v1/payments/cashfree/webhook`,
         },
 
         order_note: `Payment for order ${order.orderId}`,
       };
+
+      console.log('Creating Cashfree order:', {
+        mode: this.env,
+        baseUrl: this.baseUrl,
+        apiVersion: this.apiVersion,
+        orderId: payload.order_id,
+        amount: payload.order_amount,
+        appIdLast4: this.appId.slice(-4),
+      });
 
       const response = await axios.post(`${this.baseUrl}/orders`, payload, {
         headers: this.getHeaders(),

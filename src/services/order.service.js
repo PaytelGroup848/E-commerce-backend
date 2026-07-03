@@ -1,5 +1,6 @@
 const Order = require('../models/order.model');
 const Cart = require('../models/Cart.model');
+const Invoice = require("../models/Invoice.model");
 const invoiceService = require('./invoice.service');
 const settingsService = require('./settings.service');
 const Product = require('../models/Products.model');
@@ -41,6 +42,8 @@ class OrderService {
     if (!cart || cart.items.length === 0) {
       throw new ApiError(400, 'Cart is empty');
     }
+
+
 
     const orderItems = [];
     let subtotal = 0;
@@ -290,76 +293,106 @@ const total = taxableAmount + shippingCharge + codExtraCharge + taxAmount;
     };
   }
 
- async updateOrderStatus(orderId, status, userId, userRole, reason = '') {
-  const allowedStatuses = [
-    'pending',
-    'confirmed',
-    'packed',
-    'picking_dispatch',
-    'delivered',
-    'cancelled',
-    'returned',
-  ];
 
-  if (!allowedStatuses.includes(status)) {
-    throw new ApiError(400, 'Invalid order status');
-  }
-
-  if (!['super_admin', 'sub_admin'].includes(userRole)) {
-    throw new ApiError(403, 'Only admin can update order status');
-  }
-
-  const order = await Order.findById(orderId)
-    .populate('user', 'name email phone')
-    .populate('items.product', 'name sku images price')
-    .populate('items.variant', 'name sku attributes price image');
+  async updateOrderStatus(orderId, status, adminId = null, note = "") {
+  const order = await Order.findById(orderId);
 
   if (!order) {
-    throw new ApiError(404, 'Order not found');
+    throw new ApiError(404, "Order not found");
   }
 
-  const oldStatus = order.status;
-
-  if (oldStatus === status) {
-    throw new ApiError(400, 'Order already has this status');
-  }
+  const previousStatus = order.status;
 
   order.status = status;
 
-  if (status === 'confirmed') {
+  order.statusHistory = Array.isArray(order.statusHistory)
+    ? order.statusHistory
+    : [];
+
+  order.statusHistory.push({
+    status,
+    previousStatus,
+    note,
+    changedBy: adminId,
+    changedAt: new Date(),
+  });
+
+  if (status === "confirmed") {
     order.confirmedAt = order.confirmedAt || new Date();
   }
 
-  if (status === 'packed') {
-    order.packedAt = new Date();
+  if (status === "packed") {
+    order.processedAt = order.processedAt || new Date();
   }
 
-  if (status === 'picking_dispatch') {
-    order.dispatchedAt = new Date();
+  if (status === "picking_dispatch") {
+    order.shippedAt = order.shippedAt || new Date();
   }
 
-  if (status === 'delivered') {
-    order.deliveredAt = new Date();
+  if (status === "delivered") {
+    order.deliveredAt = order.deliveredAt || new Date();
+
+    order.items.forEach((item) => {
+      item.status = "delivered";
+      item.deliveredAt = item.deliveredAt || new Date();
+    });
   }
 
-  if (status === 'cancelled') {
-    order.cancelledAt = new Date();
-    order.cancellationReason = reason || 'Cancelled by admin';
+  await order.save();
+
+  // ✅ COD order delivered hone ke baad payment paid + invoice generate
+  if (
+    String(order.payment?.method || "").toLowerCase() === "cod" &&
+    String(order.status || "").toLowerCase() === "delivered"
+  ) {
+    return await this.finalizeCodDeliveredOrder(order._id, adminId);
   }
 
-  order.orderStatusHistory = order.orderStatusHistory || [];
+  return order;
+}
 
-  order.orderStatusHistory.push({
-    status,
-    message: reason || `Order status changed from ${oldStatus} to ${status}`,
-    updatedBy: userId,
-    createdAt: new Date(),
-  });
+async finalizeCodDeliveredOrder(orderId, adminId = null) {
+  const order = await Order.findById(orderId);
+
+  if (!order) {
+    throw new ApiError(404, "Order not found");
+  }
+
+  const isCOD = String(order.payment?.method || "").toLowerCase() === "cod";
+  const isDelivered = String(order.status || "").toLowerCase() === "delivered";
+
+  if (!isCOD || !isDelivered) {
+    return order;
+  }
+
+  // ✅ COD delivery successful = payment received
+  order.payment.status = "paid";
+  order.payment.paidAt = order.payment.paidAt || new Date();
+
+  if (!order.payment.transactionId) {
+    order.payment.transactionId = `COD-${order.orderId || order._id}`;
+  }
+
+  if (!order.payment.paymentId) {
+    order.payment.paymentId = `COD-PAY-${Date.now()}`;
+  }
+
+  // ✅ Duplicate invoice avoid
+  const existingInvoice = await Invoice.findOne({ order: order._id });
+
+  if (existingInvoice) {
+    await order.save();
+    return order;
+  }
+
+  // ✅ Same invoice service use karo jo paid test flow me already use ho raha hai
+  await invoiceService.generateInvoice(order._id, adminId, "auto");
 
   await order.save();
 
   return order;
 }
+
 
 async deleteOrder(orderId, userRole) {
   if (!['super_admin', 'sub_admin'].includes(userRole)) {

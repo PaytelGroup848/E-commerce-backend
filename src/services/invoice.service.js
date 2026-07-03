@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const Invoice = require('../models/Invoice.model');
-const Order = require('../models/Order.model');
+const Order = require('../models/order.model');
 const ApiError = require('../utils/ApiError');
 const settingsService = require('./settings.service');
 
@@ -36,60 +36,69 @@ class InvoiceService {
       .stroke();
   }
 
-  async generateInvoice(orderId, generatedBy = null, generatedType = 'auto') {
-    const order = await Order.findById(orderId)
-      .populate('user', 'name email phone')
-      .populate('items.product', 'name sku');
+async generateInvoice(orderId, generatedBy = null, type = "auto") {
+  const order = await Order.findById(orderId)
+    .populate("user", "name email phone")
+    .populate("items.product", "name slug images")
+    .populate("items.variant", "name attributes");
 
-    if (!order) {
-      throw new ApiError(404, 'Order not found');
-    }
-
-    if (order.payment.status !== 'paid') {
-      throw new ApiError(400, 'Invoice can be generated only after payment is paid');
-    }
-
-    const existingInvoice = await Invoice.findOne({ order: order._id });
-
-    if (existingInvoice) {
-      return existingInvoice;
-    }
-
-    const invoiceNumber = this.generateInvoiceNumber();
-    const invoiceFolder = this.ensureInvoiceFolder();
-    const fileName = `${invoiceNumber}.pdf`;
-    const pdfPath = path.join(invoiceFolder, fileName);
-
-    const settings = await settingsService.getSettings();
-
-    await this.createPdf(order, invoiceNumber, pdfPath, {
-      billing: settings.billing || {},
-      support: settings.support || {},
-      tax: settings.tax || {},
-    });
-
-    const invoice = await Invoice.create({
-      invoiceNumber,
-      order: order._id,
-      orderId: order.orderId,
-      user: order.user,
-      customerName: order.customerName,
-      customerEmail: order.customerEmail,
-      customerPhone: order.customerPhone,
-      subtotal: order.subtotal,
-      discountAmount: order.discountAmount || 0,
-      shippingCharge: order.shippingCharge || 0,
-      taxAmount: order.taxAmount || 0,
-      total: order.total,
-      paymentMethod: order.payment.method,
-      paymentStatus: order.payment.status,
-      pdfPath,
-      generatedBy,
-      generatedType,
-    });
-
-    return invoice;
+  if (!order) {
+    throw new ApiError(404, "Order not found");
   }
+
+  // Duplicate invoice avoid
+  const existingInvoice = await Invoice.findOne({
+    $or: [{ order: order._id }, { orderId: order.orderId }],
+  });
+
+  if (existingInvoice) {
+    return existingInvoice;
+  }
+
+  const invoiceNumber = this.generateInvoiceNumber();
+
+  const invoiceFolder = this.ensureInvoiceFolder();
+  const fileName = `${invoiceNumber}.pdf`;
+
+  // Absolute path for creating PDF
+  const absolutePdfPath = path.join(invoiceFolder, fileName);
+
+  // Relative path for database/browser use
+  const relativePdfPath = path.join("uploads", "invoices", fileName).replace(/\\/g, "/");
+
+  const settings = await settingsService.getSettings();
+
+  // Pehle PDF create karo. Agar PDF fail hua to DB me invoice save nahi hoga.
+  await this.createPdf(order, invoiceNumber, absolutePdfPath, settings);
+
+  const invoice = await Invoice.create({
+    invoiceNumber,
+
+    order: order._id,
+    orderId: order.orderId,
+    user: order.user?._id || order.user,
+
+    customerName: order.customerName,
+    customerEmail: order.customerEmail,
+    customerPhone: order.customerPhone,
+
+    subtotal: order.subtotal || 0,
+    discountAmount: order.discountAmount || 0,
+    shippingCharge: order.shippingCharge || 0,
+    taxAmount: order.taxAmount || 0,
+    total: order.total || 0,
+
+    paymentMethod: order.payment?.method || "cod",
+    paymentStatus: order.payment?.status || "paid",
+
+    pdfPath: relativePdfPath,
+
+    generatedBy: generatedBy || null,
+    generatedType: type || "auto",
+  });
+
+  return invoice;
+}
 
   async createPdf(order, invoiceNumber, pdfPath, settings = {}) {
     return new Promise((resolve, reject) => {

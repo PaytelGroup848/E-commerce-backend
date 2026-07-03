@@ -14,6 +14,7 @@ dotenv.config();
 
 // Import routes
 const routes = require('./src/routes');
+const cartRoutes = require('./src/routes/v1/cart.routes');
 
 // Import error handler
 const { errorHandler } = require('./src/middlewares/errorHandler');
@@ -21,56 +22,58 @@ const { errorHandler } = require('./src/middlewares/errorHandler');
 const app = express();
 
 // Connect to database
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('✅ MongoDB Connected'))
-  .catch((err) => console.error('❌ MongoDB Connection Error:', err));
+mongoose
+  .connect(process.env.MONGODB_URI)
+  .then(() => console.log('MongoDB Connected'))
+  .catch((err) => console.error('MongoDB Connection Error:', err));
 
 // ========== CORS CONFIGURATION ==========
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
   'http://localhost:5174',
-  'http://127.0.0.1:5173'
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
 ];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
       console.log('Blocked origin:', origin);
-      callback(null, true);
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-}));
+      return callback(null, true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  })
+);
 
-// ✅ Handle preflight requests
 app.options('/', cors());
 
-// ========== INCREASE REQUEST SIZE LIMIT ==========
+// ========== REQUEST BODY ==========
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 
-// Security middleware
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-  contentSecurityPolicy: false,
-}));
+// ========== SECURITY ==========
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    contentSecurityPolicy: false,
+  })
+);
 
-// Rate limiting
+// ========== RATE LIMIT ==========
 const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 100,
   message: 'Too many requests from this IP, please try again later.',
 });
 app.use('/api', limiter);
 
-// Logging
+// ========== LOGGING ==========
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
@@ -84,27 +87,48 @@ if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 if (!fs.existsSync(productsDir)) fs.mkdirSync(productsDir, { recursive: true });
 if (!fs.existsSync(categoriesDir)) fs.mkdirSync(categoriesDir, { recursive: true });
 
-// ========== SERVE STATIC FILES ==========
-app.use('/uploads', (req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-  next();
-}, express.static(path.join(__dirname, 'uploads')));
+// ========== STATIC FILES ==========
+app.use(
+  '/uploads',
+  (req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    next();
+  },
+  express.static(path.join(__dirname, 'uploads'))
+);
 
-// ========== HEALTH CHECK ==========
+// ========== HEALTH CHECKS ==========
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date() });
 });
 
+app.get('/api/v1/health', (req, res) => {
+  res.status(200).json({ status: 'OK', version: '1.0.0' });
+});
+
+// Direct public test route to confirm this Server.js is actually running.
+app.get('/api/v1/cart/ping', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Direct cart ping working from Server.js',
+  });
+});
+
 // ========== API ROUTES ==========
+// Direct mount first. This guarantees /api/v1/cart/summary works even if index.js has a mistake.
+app.use('/api/v1/cart', cartRoutes);
+
+
+
+// Main route index mount.
 app.use('/api/v1', routes);
 
-// ========== ✅ FIXED: 404 HANDLER - NO '*' WILDCARD ==========
-// Use function directly instead of '*' wildcard
+// ========== 404 HANDLER ==========
 app.use((req, res) => {
   res.status(404).json({
     success: false,
-    message: 'Cannot find ' + req.originalUrl + ' on this server'
+    message: 'Cannot find ' + req.originalUrl + ' on this server',
   });
 });
 
@@ -114,5 +138,5 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log('Server running on port ' + PORT);
-  console.log(' CORS enabled for origins:', allowedOrigins);
+  console.log('CORS enabled for origins:', allowedOrigins);
 });

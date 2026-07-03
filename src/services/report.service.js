@@ -1,4 +1,4 @@
-const Order = require('../models/Order.model');
+const Order = require('../models/order.model');
 const { getDateRange } = require('../utils/dataRange');
 
 // Sirf ye statuses revenue mein count honge

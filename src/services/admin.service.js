@@ -1,5 +1,5 @@
 const User = require('../models/User.model');
-const Order = require('../models/Order.model');
+const Order = require('../models/order.model');
 const Product = require('../models/Products.model');
 const Category = require('../models/Categories.model');
 const Session = require('../models/Session.model');
