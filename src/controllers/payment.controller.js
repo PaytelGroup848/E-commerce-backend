@@ -164,9 +164,6 @@ class PaymentController {
   async cashfreeWebhook(req, res) {
     try {
       const payload = req.body;
-
-      console.log('Cashfree webhook received:', payload);
-
       const cashfreeOrderId =
         payload?.data?.order?.order_id ||
         payload?.data?.order_id ||

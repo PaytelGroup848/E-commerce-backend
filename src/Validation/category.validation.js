@@ -8,7 +8,7 @@ const createCategorySchema = Joi.object({
   }),
   description: Joi.string().max(500).optional().allow(''),
   parent: Joi.string().optional().allow(null, ''),
-  // ✅ FIX: Allow image as string (base64) or object
+  // FIX: Allow image as string (base64) or object
   image: Joi.alternatives().try(
     Joi.string().optional().allow(null, ''),
     Joi.object({
@@ -29,7 +29,7 @@ const updateCategorySchema = Joi.object({
   name: Joi.string().min(2).max(100).optional(),
   description: Joi.string().max(500).optional().allow(''),
   parent: Joi.string().optional().allow(null),
-  // ✅ FIX: Allow image as string (base64) or object
+
   image: Joi.alternatives().try(
     Joi.string().optional().allow(null, ''),
     Joi.object({

@@ -1,5 +1,5 @@
 const User = require('../models/User.model');
-const Order = require('../models/l');
+const Order = require('../models/order.model');
 const bcrypt = require('bcryptjs');
 const ApiError = require('../utils/ApiError');
 

@@ -19,11 +19,6 @@ class CashfreeService {
       this.env === 'production'
         ? 'https://api.cashfree.com/pg'
         : 'https://sandbox.cashfree.com/pg';
-
-    console.log('Cashfree Mode:', this.env);
-    console.log('Cashfree Base URL:', this.baseUrl);
-    console.log('Cashfree API Version:', this.apiVersion);
-    console.log('Cashfree App ID last 4:', this.appId ? this.appId.slice(-4) : 'missing');
   }
 
   getHeaders() {
@@ -80,16 +75,6 @@ class CashfreeService {
 
         order_note: `Payment for order ${order.orderId}`,
       };
-
-      console.log('Creating Cashfree order:', {
-        mode: this.env,
-        baseUrl: this.baseUrl,
-        apiVersion: this.apiVersion,
-        orderId: payload.order_id,
-        amount: payload.order_amount,
-        appIdLast4: this.appId.slice(-4),
-      });
-
       const response = await axios.post(`${this.baseUrl}/orders`, payload, {
         headers: this.getHeaders(),
       });

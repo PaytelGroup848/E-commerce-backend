@@ -3,77 +3,134 @@ require("dotenv").config();
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
-const green  = (t) => `\x1b[32m${t}\x1b[0m`;
-const red    = (t) => `\x1b[31m${t}\x1b[0m`;
+const green = (t) => `\x1b[32m${t}\x1b[0m`;
+const red = (t) => `\x1b[31m${t}\x1b[0m`;
 const yellow = (t) => `\x1b[33m${t}\x1b[0m`;
-const cyan   = (t) => `\x1b[36m${t}\x1b[0m`;
+const cyan = (t) => `\x1b[36m${t}\x1b[0m`;
 
 async function seedSuperAdmin() {
-  console.log(cyan("\n Super Admin Seeder Starting...\n"));
+  console.log(cyan("\n Super Admin Force Reset Seeder Starting...\n"));
 
   try {
-    // Step 1: Connect
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log(green(" MongoDB Connected"));
+    const MONGO_URI =
+      process.env.MONGODB_URI ||
+      process.env.MONGO_URI ||
+      "mongodb://127.0.0.1:27017/ecommerce";
 
-    // Step 2: Env check
-    if (!process.env.SUPER_ADMIN_EMAIL || !process.env.SUPER_ADMIN_PASSWORD) {
-      console.log(red("❌ SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD missing in .env\n"));
-      process.exit(1);
-    }
+    const SUPER_ADMIN_EMAIL = (
+      process.env.SUPER_ADMIN_EMAIL || "superadmin@qubanhc.com"
+    )
+      .trim()
+      .toLowerCase();
+
+    const SUPER_ADMIN_PASSWORD =
+      process.env.SUPER_ADMIN_PASSWORD || "SuperAdmin@12345";
+
+    const SUPER_ADMIN_NAME =
+      process.env.SUPER_ADMIN_NAME || "Super Admin";
+
+    const SUPER_ADMIN_PHONE =
+      process.env.SUPER_ADMIN_PHONE || "9999999999";
+
+    await mongoose.connect(MONGO_URI);
+    console.log(green("MongoDB Connected"));
 
     const db = mongoose.connection.db;
     const usersCollection = db.collection("users");
     const settingsCollection = db.collection("platformsettings");
 
-    // Step 3: Already exists?
-    const existingAdmin = await usersCollection.findOne({ role: "super_admin" });
-    if (existingAdmin) {
-      console.log(yellow("  Super Admin already exists!"));
-      console.log(yellow(`   Email: ${existingAdmin.email}\n`));
-      process.exit(0);
-    }
-
-    // Step 4: Password manually hash karo — model bypass
-    const hashedPassword = bcrypt.hashSync(process.env.SUPER_ADMIN_PASSWORD, 12);
-
-    // Step 5: Direct insert — model use nahi kar rahe
     const now = new Date();
-    const result = await usersCollection.insertOne({
-      name: process.env.SUPER_ADMIN_NAME || "Super Admin",
-      email: process.env.SUPER_ADMIN_EMAIL,
+
+    const hashedPassword = await bcrypt.hash(SUPER_ADMIN_PASSWORD, 12);
+
+    const payload = {
+      name: SUPER_ADMIN_NAME,
+      firstName: "Super",
+      lastName: "Admin",
+      email: SUPER_ADMIN_EMAIL,
+      phone: SUPER_ADMIN_PHONE,
+
       password: hashedPassword,
-      phone: null,
+
       role: "super_admin",
       status: "active",
+      isActive: true,
+
       isEmailVerified: true,
+      emailVerified: true,
       emailVerifiedAt: now,
-      isPhoneVerified: false,
+
+      isPhoneVerified: true,
+      phoneVerified: true,
+      phoneVerifiedAt: now,
+
       permissions: [],
+
       failedLoginAttempts: 0,
       accountLockedUntil: null,
       passwordChangedAt: now,
+
       addresses: [],
       walletBalance: 0,
+
       preferences: {
         emailNotifications: true,
         smsNotifications: false,
         pushNotifications: true,
       },
-      avatar: { url: null, publicId: null },
+
+      avatar: {
+        url: null,
+        publicId: null,
+      },
+
       lastLoginAt: null,
       lastLoginIp: null,
-      createdAt: now,
+
       updatedAt: now,
       __v: 0,
+    };
+
+    // Existing super admin email ya role se find karo
+    const existingAdmin = await usersCollection.findOne({
+      $or: [{ email: SUPER_ADMIN_EMAIL }, { role: "super_admin" }],
     });
 
-    console.log(green(" Super Admin created!\n"));
-    console.log(`   Name  : ${process.env.SUPER_ADMIN_NAME || "Super Admin"}`);
-    console.log(`   Email : ${process.env.SUPER_ADMIN_EMAIL}`);
-    console.log(`   ID    : ${result.insertedId}\n`);
+    let adminId;
 
-    // Step 6: Platform settings
+    if (existingAdmin) {
+      await usersCollection.updateOne(
+        { _id: existingAdmin._id },
+        {
+          $set: payload,
+        }
+      );
+
+      adminId = existingAdmin._id;
+
+      console.log(green(" Existing Super Admin force reset successfully"));
+    } else {
+      const result = await usersCollection.insertOne({
+        ...payload,
+        createdAt: now,
+      });
+
+      adminId = result.insertedId;
+
+      console.log(green(" New Super Admin created successfully"));
+    }
+
+    // Duplicate super_admin remove mat karo, bas warn karo
+    const superAdminCount = await usersCollection.countDocuments({
+      role: "super_admin",
+    });
+
+    if (superAdminCount > 1) {
+      console.log(
+        yellow(` Warning: DB me ${superAdminCount} super_admin users hain.`)
+      );
+    }
+
     const existingSettings = await settingsCollection.findOne({
       key: "platform_settings",
     });
@@ -81,6 +138,7 @@ async function seedSuperAdmin() {
     if (!existingSettings) {
       await settingsCollection.insertOne({
         key: "platform_settings",
+
         store: {
           name: "My eCommerce Store",
           email: "",
@@ -88,12 +146,14 @@ async function seedSuperAdmin() {
           currency: "INR",
           currencySymbol: "₹",
         },
+
         vendor: {
           isRegistrationEnabled: true,
           autoApprove: false,
           defaultCommissionRate: 10,
           minWithdrawalAmount: 500,
         },
+
         order: {
           freeShippingAbove: 999,
           defaultShippingCharge: 79,
@@ -102,21 +162,30 @@ async function seedSuperAdmin() {
           cancellationWindowHours: 24,
           returnWindowDays: 7,
         },
-        updatedBy: result.insertedId,
+
+        tax: {
+          isGSTEnabled: true,
+          defaultGSTRate: 18,
+          gstNumber: "",
+        },
+
+        updatedBy: adminId,
         createdAt: now,
         updatedAt: now,
       });
-      console.log(green(" Platform settings created\n"));
+
+      console.log(green(" Platform settings created"));
     }
 
-    console.log(green(" Done!\n"));
-    console.log(cyan("   Login with:"));
-    console.log(`   Email    : ${process.env.SUPER_ADMIN_EMAIL}`);
-    console.log(`   Password : ${process.env.SUPER_ADMIN_PASSWORD}`);
-    console.log(yellow("\n    Change password after first login!\n"));
-
+    console.log(green("\n Done!\n"));
+    console.log(cyan("Login credentials:"));
+    console.log(`Email    : ${SUPER_ADMIN_EMAIL}`);
+    console.log(`Password : ${SUPER_ADMIN_PASSWORD}`);
+    console.log(`Role     : super_admin`);
+    console.log(yellow("\n Change password after first login!\n"));
   } catch (error) {
-    console.log(red(`\n❌ Seeder failed: ${error.message}\n`));
+    console.log(red(`\n Seeder failed: ${error.message}\n`));
+    console.error(error.stack);
     process.exit(1);
   } finally {
     await mongoose.connection.close();

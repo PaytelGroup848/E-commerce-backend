@@ -99,22 +99,20 @@ const userSchema = new mongoose.Schema(
         // Categories
         'categories_view',
         'categories_create',
-        'categories_edit',
         'categories_delete',
         
         // Products
         'products_view',
         'products_create',
-        'products_edit',
         'products_delete',
+        // support 
+        'support',
         
         // Orders
         'orders_view',
-        'orders_edit',
         
         // Customers
         'customers_view',
-        'customers_edit',
       ],
     },
 

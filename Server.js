@@ -107,13 +107,6 @@ app.get('/api/v1/health', (req, res) => {
   res.status(200).json({ status: 'OK', version: '1.0.0' });
 });
 
-// Direct public test route to confirm this Server.js is actually running.
-app.get('/api/v1/cart/ping', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'Direct cart ping working from Server.js',
-  });
-});
 
 // ========== API ROUTES ==========
 // Direct mount first. This guarantees /api/v1/cart/summary works even if index.js has a mistake.
