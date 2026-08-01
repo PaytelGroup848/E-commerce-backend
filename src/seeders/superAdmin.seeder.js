@@ -15,7 +15,7 @@ async function seedSuperAdmin() {
     const MONGO_URI =
       process.env.MONGODB_URI ||
       process.env.MONGO_URI ||
-      "mongodb://127.0.0.1:27017/ecommerce";
+      "mongodb+srv://datacloude8_db_user:6fD3ao7TUd3EgiPP@newqubanhc.d1c6qk4.mongodb.net/?appName=NewQubanHc";
 
     const SUPER_ADMIN_EMAIL = (
       process.env.SUPER_ADMIN_EMAIL || "superadmin@qubanhc.com"

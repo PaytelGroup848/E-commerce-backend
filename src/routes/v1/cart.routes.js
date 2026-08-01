@@ -9,7 +9,7 @@ const {
   addToCartSchema,
   updateQuantitySchema,
   applyCouponSchema,
-} = require('../../validation/cart.validation');
+} = require('../../Validation/cart.validation');
 
 // Public route only for debugging route mounting.
 // Open: http://localhost:5000/api/v1/cart/test

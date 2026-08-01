@@ -3,7 +3,7 @@ const router = express.Router();
 const categoryController = require('../../controllers/category.controller');
 const { protect, restrictTo } = require('../../middlewares/auth.middleware');
 const validate = require('../../middlewares/validation.middleware');
-const { createCategorySchema, updateCategorySchema } = require('../../validation/category.validation');
+const { createCategorySchema, updateCategorySchema } = require('../../Validation/category.validation.js');
 
 // ==================== PUBLIC ROUTES ====================
 router.get('/', categoryController.getAllCategories);
