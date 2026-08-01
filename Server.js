@@ -31,7 +31,7 @@ mongoose
 
 // ========== CORS CONFIGURATION ==========
 const allowedOrigins = [
-  "https://qubanhygienecare.com/",
+  "https://qubanhygienecare.com",
   "http://localhost:5173",
   "http://localhost:5174",
   "http://127.0.0.1:5173",
