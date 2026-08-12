@@ -50,6 +50,7 @@ const createProductSchema = Joi.object({
   }).optional(),
   tags: Joi.array().items(Joi.string()).optional(),
   isFeatured: Joi.boolean().default(false),
+  unitsPerPack: Joi.number().integer().min(1).default(1),
 });
 
 const updateProductSchema = Joi.object({
@@ -91,6 +92,7 @@ const updateProductSchema = Joi.object({
   }).optional(),
   tags: Joi.array().items(Joi.string()).optional(),
   isFeatured: Joi.boolean().optional(),
+  unitsPerPack: Joi.number().integer().min(1).optional(),
   status: Joi.string().valid('draft', 'active', 'inactive', 'rejected').optional(),
 });
 

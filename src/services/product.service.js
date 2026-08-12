@@ -67,6 +67,7 @@ class ProductService {
       tags = [],
       isFeatured = false,
       sku,
+      unitsPerPack,
     } = productData;
 
     // ─── VALIDATION ───────────────────────────────────────
@@ -166,6 +167,7 @@ class ProductService {
       },
       tags: tags || [],
       isFeatured: isFeatured || false,
+      unitsPerPack: unitsPerPack && unitsPerPack >= 1 ? Math.floor(unitsPerPack) : 1,
       status: isAdmin ? 'active' : 'draft',
     });
 

@@ -175,6 +175,12 @@ const productSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+
+    unitsPerPack: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
   },
   {
     timestamps: true,
