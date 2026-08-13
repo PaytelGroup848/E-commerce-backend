@@ -11,8 +11,6 @@ router.get('/slug/:slug', productController.getProductBySlug);
 router.get('/category/:categoryId', productController.getProductsByCategory);
 router.get('/:id', productController.getProductById);
 
-router.get('/:id', productController.getProductById);
-
 // ==================== PROTECTED ROUTES ====================
 router.use(protect);
 

@@ -1,5 +1,34 @@
 const Joi = require('joi');
 
+const imageSchema = Joi.object({
+  url: Joi.string().required(),
+  publicId: Joi.string().optional().allow(null, ''),
+  isMain: Joi.boolean().default(false),
+  displayOrder: Joi.number().default(0),
+});
+
+const variantInputSchema = Joi.object({
+  name: Joi.string().trim().required(),
+  price: Joi.number().min(0).optional(),
+  originalPrice: Joi.number().min(0).optional().allow(null),
+  stock: Joi.number().min(0).default(0),
+  attributes: Joi.array()
+    .items(
+      Joi.object({
+        name: Joi.string().required(),
+        value: Joi.string().required(),
+      })
+    )
+    .optional(),
+  sku: Joi.string().optional().allow(null, ''),
+  image: Joi.object({
+    url: Joi.string().optional().allow(null, ''),
+    publicId: Joi.string().optional().allow(null, ''),
+  }).optional(),
+  lowStockThreshold: Joi.number().min(0).optional(),
+  displayOrder: Joi.number().optional(),
+});
+
 const createProductSchema = Joi.object({
   name: Joi.string().min(2).max(300).required().messages({
     'string.empty': 'Product name is required',
@@ -23,16 +52,7 @@ const createProductSchema = Joi.object({
   stock: Joi.number().min(0).default(0),
   trackInventory: Joi.boolean().default(true),
   lowStockThreshold: Joi.number().min(0).default(5),
-  images: Joi.array()
-    .items(
-      Joi.object({
-        url: Joi.string().uri().required(),
-        publicId: Joi.string().optional(),
-        isMain: Joi.boolean().default(false),
-        displayOrder: Joi.number().default(0),
-      })
-    )
-    .optional(),
+  images: Joi.array().items(imageSchema).optional(),
   specifications: Joi.array()
     .items(
       Joi.object({
@@ -51,6 +71,8 @@ const createProductSchema = Joi.object({
   tags: Joi.array().items(Joi.string()).optional(),
   isFeatured: Joi.boolean().default(false),
   unitsPerPack: Joi.number().integer().min(1).default(1),
+  hasVariants: Joi.boolean().default(false),
+  variants: Joi.array().items(variantInputSchema).optional(),
 });
 
 const updateProductSchema = Joi.object({
@@ -65,16 +87,7 @@ const updateProductSchema = Joi.object({
   stock: Joi.number().min(0).optional(),
   trackInventory: Joi.boolean().optional(),
   lowStockThreshold: Joi.number().min(0).optional(),
-  images: Joi.array()
-    .items(
-      Joi.object({
-        url: Joi.string().uri().required(),
-        publicId: Joi.string().optional(),
-        isMain: Joi.boolean().default(false),
-        displayOrder: Joi.number().default(0),
-      })
-    )
-    .optional(),
+  images: Joi.array().items(imageSchema).optional(),
   specifications: Joi.array()
     .items(
       Joi.object({
@@ -93,6 +106,8 @@ const updateProductSchema = Joi.object({
   tags: Joi.array().items(Joi.string()).optional(),
   isFeatured: Joi.boolean().optional(),
   unitsPerPack: Joi.number().integer().min(1).optional(),
+  hasVariants: Joi.boolean().optional(),
+  variants: Joi.array().items(variantInputSchema).optional(),
   status: Joi.string().valid('draft', 'active', 'inactive', 'rejected').optional(),
 });
 
