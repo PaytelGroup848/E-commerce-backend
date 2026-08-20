@@ -25,27 +25,27 @@ const USER_STATUS = {
 
 // ─── Vendor Status ────────────────────────────────────────────
 const VENDOR_STATUS = {
-  PENDING: "pending",       // Registered, waiting for approval
-  APPROVED: "approved",     // Admin ne approve kiya
-  REJECTED: "rejected",     // Admin ne reject kiya
-  SUSPENDED: "suspended",   // Temporarily band
+  PENDING: "pending", // Registered, waiting for approval
+  APPROVED: "approved", // Admin ne approve kiya
+  REJECTED: "rejected", // Admin ne reject kiya
+  SUSPENDED: "suspended", // Temporarily band
 };
 
 // ─── Product Status ───────────────────────────────────────────
 const PRODUCT_STATUS = {
-  DRAFT: "draft",           // Vendor ne save kiya, publish nahi
-  ACTIVE: "active",         // Live on site
-  INACTIVE: "inactive",     // Hidden
-  REJECTED: "rejected",     // Admin ne reject kiya
+  DRAFT: "draft", // Vendor ne save kiya, publish nahi
+  ACTIVE: "active", // Live on site
+  INACTIVE: "inactive", // Hidden
+  REJECTED: "rejected", // Admin ne reject kiya
   OUT_OF_STOCK: "out_of_stock",
 };
 
 // ─── Order Status ─────────────────────────────────────────────
 const ORDER_STATUS = {
-  PENDING: "pending",             // Order placed, payment pending
+  PENDING: "pending", // Order placed, payment pending
   PAYMENT_FAILED: "payment_failed",
-  CONFIRMED: "confirmed",         // Payment success
-  PROCESSING: "processing",       // Vendor preparing
+  CONFIRMED: "confirmed", // Payment success
+  PROCESSING: "processing", // Vendor preparing
   SHIPPED: "shipped",
   OUT_FOR_DELIVERY: "out_for_delivery",
   DELIVERED: "delivered",
@@ -68,7 +68,7 @@ const PAYMENT_STATUS = {
 // ─── Payment Methods ──────────────────────────────────────────
 const PAYMENT_METHODS = {
   RAZORPAY: "razorpay",
-  COD: "cod",         
+  COD: "cod",
   WALLET: "wallet",
 };
 
@@ -126,12 +126,12 @@ const CACHE_KEYS = {
 
 // ─── Cache TTL (seconds) ──────────────────────────────────────
 const CACHE_TTL = {
-  PRODUCT_LIST: 300,        // 5 minutes
-  PRODUCT_DETAIL: 600,      // 10 minutes
-  CATEGORY_TREE: 3600,      // 1 hour
-  PLATFORM_SETTINGS: 600,   // 10 minutes
-  OTP: 600,                 // 10 minutes
-  SESSION: 604800,          // 7 days
+  PRODUCT_LIST: 300, // 5 minutes
+  PRODUCT_DETAIL: 600, // 10 minutes
+  CATEGORY_TREE: 3600, // 1 hour
+  PLATFORM_SETTINGS: 600, // 10 minutes
+  OTP: 600, // 10 minutes
+  SESSION: 604800, // 7 days
 };
 
 // ─── OTP Types ────────────────────────────────────────────────
@@ -185,10 +185,20 @@ const NOTIFICATION_TYPES = {
 // ─── File Upload ──────────────────────────────────────────────
 const UPLOAD = {
   MAX_FILE_SIZE: 5 * 1024 * 1024, // 5MB
+
   ALLOWED_IMAGE_TYPES: ["image/jpeg", "image/png", "image/webp"],
+
+  ALLOWED_VIDEO_TYPES: [
+    "video/mp4",
+    "video/webm",
+    "video/quicktime", // .mov
+  ],
+
   ALLOWED_DOCUMENT_TYPES: ["application/pdf"],
+
   FOLDERS: {
     PRODUCT_IMAGES: "products",
+    PRODUCT_VIDEOS: "product-videos",
     USER_AVATARS: "avatars",
     VENDOR_DOCUMENTS: "vendor-docs",
     CATEGORY_IMAGES: "categories",
