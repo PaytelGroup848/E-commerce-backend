@@ -1,36 +1,70 @@
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 
-// Ensure upload directory exists
-const uploadDir = process.env.UPLOAD_PATH || './uploads/products';
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+// Ensure upload directories exist
+const uploadDirs = {
+  products: process.env.UPLOAD_PATH || "./uploads/products",
+  banners: process.env.BANNER_UPLOAD_PATH || "./uploads/banners",
+  categories: process.env.CATEGORY_UPLOAD_PATH || "./uploads/categories",
+};
 
-// Configure storage
+// Create all upload directories
+Object.values(uploadDirs).forEach((dir) => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+});
+
+// Configure storage with dynamic destination
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadDir);
+    let uploadPath = uploadDirs.products; // default
+
+    // Determine upload path based on field name or custom parameter
+    if (file.fieldname === "image" || file.fieldname === "bannerImage") {
+      // Check if it's a banner upload
+      if (req.path.includes("/banners")) {
+        uploadPath = uploadDirs.banners;
+      }
+    } else if (file.fieldname === "categoryImage") {
+      uploadPath = uploadDirs.categories;
+    }
+
+    // Ensure the specific directory exists
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+
+    cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
     const ext = path.extname(file.originalname);
-    cb(null, `product-${uniqueSuffix}${ext}`);
+    const baseName = path.basename(file.originalname, ext);
+    const sanitizedName = baseName.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase();
+    cb(null, `${sanitizedName}-${uniqueSuffix}${ext}`);
   },
 });
 
 // File filter
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+  const allowedTypes = [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "image/svg+xml",
+  ];
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Only images are allowed (JPEG, PNG, WEBP, GIF)'), false);
+    cb(new Error("Only images are allowed (JPEG, PNG, WEBP, GIF, SVG)"), false);
   }
 };
 
-// ✅ FIX: Increase file size limit to 10MB
+// Configure upload with limits
 const upload = multer({
   storage: storage,
   limits: {
@@ -40,13 +74,17 @@ const upload = multer({
 });
 
 // Multiple images upload (max 5 images)
-const uploadMultiple = upload.array('images', 5);
+const uploadMultiple = upload.array("images", 5);
 
 // Single image upload
-const uploadSingle = upload.single('image');
+const uploadSingle = upload.single("image");
+
+// Banner image upload (using 'image' field)
+const uploadBannerImage = upload.single("image");
 
 module.exports = {
   upload,
   uploadMultiple,
   uploadSingle,
+  uploadBannerImage,
 };

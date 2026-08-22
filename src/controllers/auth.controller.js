@@ -44,6 +44,7 @@ class AuthController {
         ApiResponse.success('Login successful', {
           user: result.user,
           accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
         })
       );
     } catch (error) {
